@@ -7981,6 +7981,7 @@ sub launch ($) {
     $action->wrapup();
   }
 
+  $ret = 0 unless ($ret);
   exit $ret;
 }
 
