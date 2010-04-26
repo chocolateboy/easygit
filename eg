@@ -11,9 +11,11 @@
 ## to get a comparison to svn in terms of capabilities and commands.
 ## Webpage for eg: http://www.gnome.org/~newren/eg
 
+use strict;
+use warnings;
+
 package main;
 
-use warnings;
 use Getopt::Long;
 use Cwd qw(getcwd abs_path);
 use List::Util qw(max);
@@ -1122,7 +1124,7 @@ sub run {
 
     # Set up a branch for each remote branch, not just master
     foreach my $b (@remote_branches) {
-      ($remote, $branch) = ($b =~ m#^(.*)/(.*?)$#);
+      my ($remote, $branch) = ($b =~ m#^(.*)/(.*?)$#);
       next if $branch eq "HEAD";
       next if grep {$branch eq $_} @local_branches;
       ExecUtil::execute("$git_cmd branch $branch $remote/$branch > /dev/null");
@@ -2941,7 +2943,7 @@ EOF
   my %remotes;
   my $longest = 0;
   my @abbrev_remotes = split('\n', ExecUtil::output("$git_cmd remote"));
-  foreach $remote (@abbrev_remotes) {
+  foreach my $remote (@abbrev_remotes) {
     chomp($remote);
     my $url = RepoUtil::get_config("remote.$remote.url");
     $remotes{$remote} = $url;
@@ -3200,13 +3202,14 @@ sub _get_revision_name {
     # Determine any name we previously determined for $parent, the name we
     # would give it relative to $child, and determine which should "win"
     my ($orig_parent_name, $orig_parent_distance) = _get_values($names, $parent);
+    my $parent_name;
     if ($cur_name =~ /^(.*)~(\d+)$/) {
       my $count = $2 + 1;
       $parent_name = "$1~$count";
     } else {
       $parent_name = "$cur_name~1";
     }
-    $parent_distance = $distance + 1;
+    my $parent_distance = $distance + 1;
     if (!$orig_parent_name ||
         _path_count($orig_parent_name) > _path_count($parent_name)) {
       $names->{$parent} = [$parent_name, $parent_distance];
@@ -3290,7 +3293,7 @@ sub run {
   # Make sure that we don't leave the terminal in a weird state if the user
   # hits Ctrl-C during eg log
   local $SIG{INT} = 
-    sub { kill SIGKILL, $pid; close(INPUT); close(OUTPUT); close(REV_LIST_INPUT);
+    sub { kill 'SIGKILL', $pid; close(INPUT); close(OUTPUT); close(REV_LIST_INPUT);
           exit(0); };
  
   #open(OUTPUT, ">&STDOUT");
@@ -3298,7 +3301,7 @@ sub run {
     # If it's a commit line, determine the name of the commit and print it too
     # ANSI color escape sequences make this regex kind of ugly...
     if (/^((?:\e\[.*?m)?commit ([0-9a-f]{40}))((?:\e\[m)?)$/) {
-      my $name = _get_revision_name($2, REV_LIST_INPUT, \%names);
+      my $name = _get_revision_name($2, *REV_LIST_INPUT, \%names);
       print OUTPUT "$1 ($name)$3\n" if $name;
       print OUTPUT "$1$3\n"         if !$name;
     } else {
@@ -3880,7 +3883,7 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
+  my @args = Util::quote_args(@{$self->{args}});
   return ExecUtil::execute("$git_cmd pull @args", ignore_ret => 1);
 }
 
@@ -4247,7 +4250,7 @@ EOF
     # 3 - branch.$branch.merge option
     if (!$default_known) {
       my $branch = RepoUtil::current_branch();
-      $push_branch = RepoUtil::get_config("branch.$branch.merge");
+      my $push_branch = RepoUtil::get_config("branch.$branch.merge");
       if (defined $push_branch) {
         $push_branch =~ s#refs/heads/##;
         push(@{$self->{args}}, "$branch:$push_branch");
@@ -4274,7 +4277,7 @@ EOF
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
+  my @args = Util::quote_args(@{$self->{args}});
   return ExecUtil::execute("$git_cmd push @args", ignore_ret => 1);
 }
 
@@ -4531,7 +4534,7 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
+  my @args = Util::quote_args(@{$self->{args}});
   return ExecUtil::execute("$git_cmd rebase @args", ignore_ret => 1);
 }
 
@@ -5237,6 +5240,7 @@ EOF
   # Determine some other stuff needed 
   $self->{files} = \@quoted_files;
   my ($new_files, $newish_files, $revert_files);
+  my ($newly_added_files, $new_since_rev_files, $other_files);
   if (!$in && !$initial_commit) {
     my $revision = (@$revs) ? $revs->[0] : "HEAD";
     ($newly_added_files, $new_since_rev_files, $other_files) =
@@ -5604,8 +5608,8 @@ sub preprocess {
   if (!defined($since)) {
     my $branch = RepoUtil::current_branch();
     die "Aborting: No revision specified.\n" if !defined($branch);
-    $merge_remote = RepoUtil::get_config("branch.$branch.remote");
-    $merge_branch = RepoUtil::get_config("branch.$branch.merge");
+    my $merge_remote = RepoUtil::get_config("branch.$branch.remote");
+    my $merge_branch = RepoUtil::get_config("branch.$branch.merge");
     die "Aborting: No revision specified.\n" if !defined($merge_branch);
     $merge_branch =~ s#^refs/heads/##;
     $since = "$merge_remote/$merge_branch";
@@ -5639,7 +5643,7 @@ sub preprocess {
   my ($ret, $unique_to_since) = ExecUtil::execute_captured($command);
   die "Couldn't parse '$command' output '$unique_to_since'"
     unless ($unique_to_since =~ /^\s*([0-9]+)$/);
-  $need_commits = $1;
+  my $need_commits = $1;
   die "Aborting: $self->{since} is not an ancestor of HEAD.\n" if $need_commits;
   die "Aborting: There are no commits since $self->{since}.\n"
     if $orig_head eq $since_sha1sum;
@@ -5659,7 +5663,7 @@ sub run {
 
 EOF
   close($fh);
-  $ret = ExecUtil::execute("$git_cmd log --reverse --no-merges --pretty=format:" .
+  my $ret = ExecUtil::execute("$git_cmd log --reverse --no-merges --pretty=format:" .
             "'#commit %H%n#Author: %an <%ae>%n#Date:   %ad%n%n%s%n%n%b' " .
             " $self->{since}..$self->{orig_head} >> $filename");
   exit $ret if $ret;
@@ -6204,6 +6208,7 @@ sub postprocess {
   while (@lines) {
     my $line = shift @lines;
     my $section = undef;
+    my $title;
 
     if ($line =~ m/^# On branch (.*)$/) {
       $branch = $1;
@@ -6266,7 +6271,7 @@ sub postprocess {
       if (defined($files{$section})) {
         push(@{$files{$section}{'file_list'}}, @section_files);
       } else {
-        $files{$section} = { title     => $title,
+        $files{$section} = { title     => $title, # may be undef
                              hint      => $hints,
                              file_list => \@section_files };
       }
