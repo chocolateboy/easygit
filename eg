@@ -813,7 +813,7 @@ Examples:
   return $self;
 }
 
-sub _looks_like_git_repo {
+sub _looks_like_git_repo ($) {
   my $path = shift;
 
   my $clone_protocol = qr#^(?:git|ssh|http|https|rsync)://#;
@@ -2017,7 +2017,7 @@ run 'eg rebase --continue' to allow the rebase operation to continue.
                                       );
 }
 
-sub _conflict_resolution_message {
+sub _conflict_resolution_message (%) {
   my $opts = {op              => "!!!FIXME!!!",
               show_empty_case => 0,
               extra_stop_info => '',
@@ -3162,7 +3162,7 @@ Description:
   return $self;
 }
 
-sub _get_values {
+sub _get_values ($$) {
   my ($names, $sha1sum) = @_;
   my ($name, $distance);
   if (defined($names->{$sha1sum})) {
@@ -3171,13 +3171,13 @@ sub _get_values {
   return ($name, $distance);
 }
 
-sub _path_count {
+sub _path_count ($) {
   my ($name) = @_;
   my @matches = ($name =~ m/[~^]/g);
   return scalar @matches;
 }
 
-sub _get_revision_name {
+sub _get_revision_name ($$$) {
   my ($sha1sum, $filehandle, $names) = @_;
   my ($name, $distance);
 
@@ -4041,7 +4041,7 @@ Options
   return $self;
 }
 
-sub _get_push_repository {
+sub _get_push_repository ($) {
   my ($repository) = @_;
 
   if (defined $repository) {
@@ -4057,7 +4057,7 @@ sub _get_push_repository {
 # undef the repository doesn't specify a valid repository or the repository
 # is not of a type where we can determine bare-ness.  Otherwise returns
 # either the string "true" or "false".
-sub _check_if_bare {
+sub _check_if_bare ($) {
   my $repository = shift;
 
   # Don't know how to check rsync, http, https, or git repositories to see
@@ -7041,7 +7041,7 @@ sub run {
 package ExecUtil;
 
 # _execute_impl is the guts for execute() and execute_captured()
-sub _execute_impl {
+sub _execute_impl ($@) {
   my ($command, @opts) = @_;
   my ($ret, $output);
   my %options = ( ignore_ret => 0, capture_output => 0, @opts );
@@ -7103,13 +7103,13 @@ sub _execute_impl {
 
 # executes a command, capturing its output (both STDOUT and STDERR),
 # returning both the return value and the output
-sub execute_captured {
+sub execute_captured ($@) {
   my ($command, @options) = @_;
   return _execute_impl($command, capture_output => 1, @options);
 }
 
 # executes a command, returning its chomped output
-sub output {
+sub output ($@) {
   my ($command, @options) = @_;
   my ($ret, $output) = execute_captured($command, @options);
   die "Failed executing '$command'!\n" if $ret != 0;
@@ -7118,7 +7118,7 @@ sub output {
 }
 
 # executes a command (output not captured), returning its return value
-sub execute {
+sub execute ($@) {
   my ($command, @options) = @_;
   return _execute_impl($command, @options);
 }
@@ -7129,7 +7129,7 @@ sub execute {
 package RepoUtil;
 
 # current_branch: Get the currently active branch
-sub current_branch {
+sub current_branch () {
   Util::push_debug(new_value => $DEBUG ? 1 : 0);
   my ($ret, $output) = ExecUtil::execute_captured("$GIT_CMD symbolic-ref HEAD",
                                                   ignore_ret => 1);
@@ -7141,7 +7141,7 @@ sub current_branch {
   return $output;
 }
 
-sub git_dir {
+sub git_dir (%) {
   my $options = {force => 0, @_};  # Hashref initialized as we're told
   if (!$options->{force}) {
     return $GITDIR if ($GITDIR);
@@ -7157,7 +7157,7 @@ sub git_dir {
   return $output;
 }
 
-sub get_dirs {
+sub get_dirs () {
   my $options = {force => 0, @_};  # Hashref initialized as we're told
 
   if ($CURDIR && !$options->{force}) {
@@ -7189,12 +7189,12 @@ sub get_dirs {
   return ($CURDIR, $TOPDIR, $GITDIR);
 }
 
-sub initial_commit {
+sub initial_commit () {
   my @output = `$GIT_CMD rev-parse --verify -q HEAD`;
   return $?;
 }
 
-sub valid_ref {
+sub valid_ref ($) {
   my ($ref) = @_;
   my ($ret, $sha1sum) =
     ExecUtil::execute_captured("$GIT_CMD rev-parse --verify -q $ref",
@@ -7202,12 +7202,12 @@ sub valid_ref {
   return $ret == 0;
 }
 
-sub files_modified() {
+sub files_modified () {
   my @output = `$GIT_CMD status -a`;
   return $? == 0;
 }
 
-sub merge_branches {
+sub merge_branches () {
   my $git_dir = RepoUtil::git_dir();
   my $active_branch = RepoUtil::current_branch() || 'HEAD';
   my @merge_branches =
@@ -7217,7 +7217,7 @@ sub merge_branches {
   return @all_merge_branches;
 }
 
-sub get_special_state {
+sub get_special_state ($) {
   my $git_dir = shift;
 
   my $special_state;
@@ -7241,7 +7241,7 @@ sub get_special_state {
   return $special_state;
 }
 
-sub get_config {
+sub get_config ($) {
   my $key = shift;
   my ($ret, $output) = ExecUtil::execute_captured("$GIT_CMD config --get $key",
                                                   ignore_ret => 1);
@@ -7250,18 +7250,19 @@ sub get_config {
   return $output;
 }
 
-sub set_config {
+sub set_config ($$) {
   my $key = shift;
   my $value = shift;
   ExecUtil::execute("$GIT_CMD config $key \"$value\"");
 }
 
-sub unset_config {
+# XXX unused?
+sub unset_config ($) {
   my $key = shift;
   ExecUtil::execute("$GIT_CMD config --unset $key", ignore_ret => 1);
 }
 
-sub get_only_branch {
+sub get_only_branch ($$) {
   my $repository = shift;
   my $check_type = shift;
 
@@ -7307,7 +7308,7 @@ EOF
   return $remote_branches[0];
 }
 
-sub get_default_push_pull_repository {
+sub get_default_push_pull_repository () {
   my $branch = current_branch();
 
   if ($branch) {
@@ -7331,7 +7332,7 @@ EOF
   }
 }
 
-sub print_new_unknowns {
+sub print_new_unknowns ($) {
   my ($new_unknowns) = @_;
   my $num = scalar(@$new_unknowns);
   print STDERR "New unknown files";
@@ -7349,7 +7350,7 @@ sub print_new_unknowns {
 }
 
 # Error messages spewed by commit with non-clean working copies
-sub commit_error_message_checks {
+sub commit_error_message_checks ($$$$) {
   my ($commit_type, $check_for, $status, $new_unknown) = @_;
 
   if ($check_for->{unmerged_changes} && $status->{has_unmerged_changes}) {
@@ -7402,7 +7403,7 @@ EOF
 }
 
 # Error messages spewed by push, publish for non-clean working copies
-sub push_error_message_checks {
+sub push_error_message_checks ($$$$) {
   my ($clean_check_type, $check_for, $status, $new_unknown) = @_;
 
   if ($check_for->{unmerged_changes} && $status->{has_unmerged_changes}) {
@@ -7443,8 +7444,10 @@ EOF
   }
 }
 
-sub commit_push_checks {
-  my ($clean_check_type, $check_for) = @_;
+# XXX called with 0 args or 2 args
+sub commit_push_checks (;$$) {
+  my $clean_check_type = shift;
+  my $check_for = shift || {};
   my %status;
 
   # Determine some useful directories
@@ -7522,7 +7525,7 @@ sub commit_push_checks {
   return \%status;
 }
 
-sub record_ignored_unknowns {
+sub record_ignored_unknowns () {
   # Determine some useful directories
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
 
@@ -7535,7 +7538,7 @@ sub record_ignored_unknowns {
   close(OUTPUT);
 }
 
-sub parse_args {
+sub parse_args ($@) {
   my $multi_args = shift;
   my (@args) = @_;
 
@@ -7614,7 +7617,7 @@ sub parse_args {
   return (\@opts, \@revs, \@files);
 }
 
-sub get_revert_info {
+sub get_revert_info ($@) {
   my ($revision, @quoted_files) = @_;
 
   my $marker = "";
@@ -7695,7 +7698,7 @@ sub get_revert_info {
 package Util;
 
 # Return items in @$lista but not in @$listb
-sub difference {
+sub difference ($$) {
   my ($lista, $listb) = @_;
   my %count;
 
@@ -7706,7 +7709,7 @@ sub difference {
 }
 
 # Return items in both @$lista and in @$listb
-sub intersect {
+sub intersect ($$) {
   my ($lista, $listb) = @_;
   my %original;
   my @both = ();
@@ -7718,7 +7721,7 @@ sub intersect {
 }
 
 # Return items in either @$lista or @$listb
-sub union {
+sub union ($$) {
   my ($lista, $listb) = @_;
   my %either;
 
@@ -7729,7 +7732,7 @@ sub union {
 }
 
 # Returns whether @$list contains $item
-sub contains {
+sub contains ($$) {
   my ($list, $item) = @_;
   my $found = 0;
   foreach my $elem (@$list) {
@@ -7742,14 +7745,14 @@ sub contains {
   return $found;
 }
 
-sub uniquify_list {
+sub uniquify_list (@) {
   my @list = @_;
   my %unique;
   @unique{@list} = @list;
   return keys %unique;
 }
 
-sub split_ssh_repository {
+sub split_ssh_repository ($) {
   my ($repository) = @_;
   my ($user, $machine, $port, $path);
   if ($repository =~ m#^ssh://((?:.*?@)?)([^/:]*)(?::(\d+))?(.*)$#) {
@@ -7767,7 +7770,7 @@ sub split_ssh_repository {
   return ($user, $machine, $port, $path);
 }
 
-sub quote_args {
+sub quote_args (@) {
   my @args = @_;
 
   # Quote arguments with special characters so that when we
@@ -7796,7 +7799,7 @@ sub quote_args {
 # Have git's rev-parse command parse @args and decide which part is files,
 # which is options, and which are revisions.  Further, have git translate
 # revisions into full 40-character hexadecimal commit ids.
-sub git_rev_parse {
+sub git_rev_parse (@) {
   my @args = @_;
 
   Util::push_debug(new_value => 0);
@@ -7842,7 +7845,7 @@ sub git_rev_parse {
 #     reroot_paths__from_to_files("/tmp/junk", "/tmp", ('bar', '../foo'))
 #   would return
 #     ('junk/bar', 'foo')
-sub reroot_paths__from_to_files {
+sub reroot_paths__from_to_files ($$@) {
   my ($from, $to, @files) = @_;
   $from =~ s#/*$#/#;   # Make sure $from ends with exactly 1 slash
   $to   =~ s#/*$#/#;   # Make sure $to   ends with exactly 1 slash
@@ -7877,7 +7880,7 @@ sub reroot_paths__from_to_files {
 
 {
 my @debug_values;
-sub push_debug {
+sub push_debug (@) {
   my @opts = @_;
   my %options = ( @opts );
   die "Called without new_value!" if !defined($options{new_value});
@@ -7888,7 +7891,7 @@ sub push_debug {
   return $old_value;
 }
 
-sub pop_debug {
+sub pop_debug () {
   $DEBUG = pop @debug_values;
 }
 }
@@ -7904,7 +7907,7 @@ sub pop_debug {
 
 package main;
 
-sub launch {
+sub launch ($) {
   my $job=shift;
   $job = $ALIAS{$job} || $job;
   my $orig_job = $job;
@@ -7950,14 +7953,14 @@ sub launch {
   exit $ret;
 }
 
-sub version {
+sub version () {
   my $version_obj = "version"->new();
   $version_obj->run();
   exit 0;
 }
 
 # User gave invalid input; print an error_message, then show command usage
-sub help {
+sub help (;$) {
   my $error_message = shift;
   my %extra_args;
 
@@ -7976,7 +7979,7 @@ sub help {
   $help_obj->run();
 }
 
-sub main {
+sub main () {
   #
   # Get any global options 
   #
