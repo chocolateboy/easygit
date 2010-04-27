@@ -283,7 +283,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $result = main::GetOptions("--help" => sub { $self->help() });
   foreach my $i (0..$#ARGV) {
@@ -368,7 +367,6 @@ Options:
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $switch = 0;
   if (scalar(@ARGV) > 1 && $ARGV[0] eq "-s") {
@@ -494,7 +492,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -597,7 +594,6 @@ Examples
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $result=main::GetOptions("--help" => sub { $self->help() });
 
@@ -621,7 +617,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
   return ExecUtil::execute("$GIT_CMD show @ARGV", ignore_ret => 1);
@@ -672,7 +667,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   if ($DEBUG == 2) {
     print "    >>(No commands to run, just data to print)<<\n";
@@ -838,7 +832,6 @@ sub _looks_like_git_repo ($) {
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   if (scalar(@ARGV) > 0 && $ARGV[0] ne "--") {
     main::GetOptions("--help" => sub { $self->help() });
@@ -968,7 +961,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($reverse, $dash_x, $mainline) = (0, 0, -1);
   Getopt::Long::Configure("permute");  # Allow unrecognized options through
@@ -1052,7 +1044,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   $self->{bare} = 0;
   my @old_argv = @ARGV;
@@ -1563,7 +1554,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   # Avoid Util::git_rev_parse because it fails on t2010-checkout-ambiguous by
   # treating "--quiet" as a revision rather than an option; use our own
@@ -1799,7 +1789,6 @@ Examples:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   $self->{all} = 0;
   my $result=main::GetOptions("--help" => sub { $self->help() },
@@ -1808,7 +1797,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   if ($DEBUG == 2) {
     print "    >>(No commands to run, just data to print)<<\n";
@@ -3751,7 +3739,6 @@ Options
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -4501,7 +4488,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -4760,7 +4746,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -4827,7 +4812,6 @@ Examples
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   die "Error: Must specify paths to resolve.\n" if !@ARGV;
   @ARGV = Util::quote_args(@ARGV);
@@ -5070,7 +5054,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
   my $initial_commit = RepoUtil::initial_commit();
@@ -5535,7 +5518,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   return if (scalar(@ARGV) > 0 && $ARGV[0] eq "--");
   my $result = main::GetOptions("--help" => sub { $self->help() });
@@ -5596,7 +5578,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $since;
   my $result = main::GetOptions(
@@ -5653,7 +5634,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   # Fill out a basic log message
   my ($fh, $filename) = main::tempfile();
@@ -5755,7 +5735,6 @@ Options:
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
   return ExecUtil::execute("$GIT_CMD add @ARGV", ignore_ret => 1);
@@ -6153,7 +6132,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   -t STDOUT and $ENV{"GIT_PAGER_IN_USE"}=1;
   return $self->SUPER::run() if $self->{no_filter};
@@ -6476,7 +6454,6 @@ EOF
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
   return ExecUtil::execute("$GIT_CMD checkout @ARGV", ignore_ret => 1);
@@ -6667,7 +6644,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($ret, $output);
   my ($mode, $branch, $remote_branch, $remote) =
