@@ -22,14 +22,14 @@ use List::Util qw(max);
 use File::Temp qw/ tempfile /;
 
 # configurables
-my $DEBUG=0;
+my $DEBUG = $ENV{EASYGIT_DEBUG} || 0;
+my $GIT_CMD = $ENV{EASYGIT_GIT_CMD} || "git";  # Includes any global args, thus "git --exec-path=..."
+my $USE_PAGER = exists($ENV{EASYGIT_USE_PAGER}) ? $ENV{EASYGIT_USE_PAGER} : -1;
 
 # globals :-(
 my $OUTFH;
 my $VERSION = "1.7.0.4.dev";
 my $EG_EXEC = abs_path($0);
-my $GIT_CMD = "git";  # Includes any global args, thus "git --exec-path=..."
-my $USE_PAGER = -1;
 my %ALIAS;
 my %COMMAND;    # command=>{section, short_description} mapping
 my $SECTION = {
