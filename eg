@@ -1526,7 +1526,7 @@ Options:
 
     The .. operator of git diff (e.g. git diff master..devel) means what
     the ... operator of git log means, and vice-versa.  This causes lots of
-    confusion.  We fix this by aliasing making the .. operator of eg diff
+    confusion.  We fix this by making the .. operator of eg diff
     do exactly what the ... operator of git diff does.  To see why:
     
     Meanings of git commands, as a reminder (A and B are revisions):
