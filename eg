@@ -2,7 +2,7 @@
 
 ## Easy GIT (eg), a frontend for git designed for former cvs and svn users
 ## Version 1.7.0.4.dev
-## Copyright 2008, 2009 by Elijah Newren, and others
+## Copyright 2008-2010 by Elijah Newren, and others
 ## Licensed under GNU GPL, version 2.
 
 ## To use eg, simply stick this file in your path.  Then fire off an
