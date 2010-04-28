@@ -1,0 +1,95 @@
+=pod
+
+=head1 NAME
+
+checkout - [[about]]
+
+=head1 USAGE
+
+    eg checkout [-b] BRANCH
+    eg checkout [REVISION] PATH...
+
+=head1 DESCRIPTION
+
+C<eg checkout> mostly exists as a compatibility wrapper for those used to
+other systems (cvs/svn and git). If you:
+
+=over
+
+=item 1 want a new copy of the source code from a remote repository
+
+=item 2 OR want to switch your working copy to a different branch
+    
+=item 3 want to revert the contents of a file to its content from a different revision
+
+=back
+
+Then use:
+
+=over
+
+=item 1 C<eg clone>
+
+=item 2 C<eg switch>
+
+=item 2 C<eg revert>
+
+=back
+
+C<eg checkout> will accept the same arguments as C<eg clone> (for getting a new
+copy of the source code from a remote repository), but will provide an
+error message and tell the user to use C<eg clone> in such cases.
+
+The first usage form of C<eg checkout> is used to switch to a different
+branch (optionally also creating it first). This is something that can
+be done with no network connectivity in git and thus eg. Users can find
+identical functionality in C<eg switch>.
+
+The second usage form of C<eg checkout> is used to replace files in the
+working copy with versions from an older commit, i.e. to revert files to
+an older version. Note that this only works when the specified files
+also existed in the older version (C<eg checkout> will not delete or unstage
+files for you), does not work for the initial commit (since there's no
+older revision to revert back to -- unless you are an advanced user
+interested in just undoing the changes since the most recent staging),
+and cannot be used to undo an incomplete merge (since it only operates on
+a subset of files and not everything since a given commit).  Users can
+find the same functionality (without all the caveats) as well as other
+capabilities in eg revert.
+
+=head1 EXAMPLES
+
+Switch to the stable branch
+
+    $ eg checkout stable
+
+Replace foo.c with the third to last version before the most recent
+commit (Note that HEAD always refers to the current branch, and the
+current branch always refers to its most recent commit)
+
+    $ eg checkout HEAD~3 foo.c
+
+=head1 Differences from C<git checkout>
+
+C<eg checkout> accepts all parameters that C<git checkout> accepts with the
+same meanings and same output (C<eg checkout> merely calls C<git checkout> in
+such cases).
+
+The only difference between eg and git regarding C<checkout> is that C<eg checkout>
+will also accept all arguments to C<git clone>, and then tell users
+that they must have meant to run C<eg clone> (a much nicer error message for
+users trying to get a copy of source code from a remote repository than
+"fatal: Not a git repository").
+
+=head1 SEE ALSO
+
+Run C<git help checkout> for a comprehensive list of options available.
+C<eg checkout> is designed to accept the same options as C<git checkout>, and
+with the same meanings unless specified otherwise in the above L</"Differences">
+section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

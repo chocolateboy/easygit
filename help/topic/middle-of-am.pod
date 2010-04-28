@@ -1,0 +1,184 @@
+=pod
+
+=head1 NAME
+
+middle-of-am - How to resolve or abort an incomplete C<am> (apply mail)
+
+=head1 DESCRIPTION
+
+When conflicting changes are detected, an C<am> operation will stop to
+allow a user to resolve the conflicts. At this stage there is one of four
+things a user may want to do:
+
+=over
+
+=item 1) Find out more about what conflicts occurred
+
+=item 2) Resolve the conflicts
+
+=item 3) Tell C<git> to complete the operation
+
+=item 4) Abort the operation
+
+=back
+
+Each will be discussed below.
+
+=head2 Find out more about what conflicts occurred
+
+=head3 1. Standard case
+
+In order to find out which files have conflicts, run
+
+  eg status
+
+and then look for lines that begin with "unmerged:". You can then open
+the relevant file in an editor and look for lines with conflict markers,
+i.e. lines that start with one of
+
+  <<<<<<<
+  =======
+  >>>>>>>
+
+Between the C<E<lt>>s and the C<=>s will be one version
+of the changed file, while betwen the C<=>s and the C<E<gt>>s will be another version.
+
+=head3 2. Simple tip
+
+Since C<git> will stage any changes it is able to successfully merge, you can
+find the unresolved conflict sections of a file by running
+
+  eg diff --unstaged FILE
+
+=head3 3. Special empty commit case
+
+Sometimes, during an C<am>, the changes in a commit will no longer be
+necessary since they have already been included in the code which your
+commit is being applied on top of. In such a case, C<eg status> will simply
+show that there are no changes at all, and you can continue by telling C<git>
+to skip the current unneeded commit (see below).
+
+=head3 4. Difficult cases
+
+You can run
+
+  eg ls-files --unmerged
+
+to get a list of all files in the unmerged state. This will list up to
+three lines for each file, and look like the following:
+
+  100644 45b983be36b73c0788dc9cbcb76cbb80fc7bb057 1	foo.C
+  100644 ce013625030ba8dba906f756967f9e9ca394464a 2	foo.C
+  100644 dd7e1c6f0fefe118f0b63d9f10908c460aa317a6 3	foo.C
+
+The first line corresponds to a version of the file at some common point in
+history, the second and third lines correspond to different versions of the
+file being merged (relative to the common version). Each line is of the
+form
+
+  mode   internal-object-name                     stage filename
+
+The mode represents the permission bits and or type (executable file,
+symlink etc.), the internal-object-name is C<git>'s internal name for the
+contents of the file, the stage is a simple integer, and you should
+recognize the filename.
+
+You can make use of this information to detect the following situations:
+
+=over
+
+=item A)
+
+There's a conflict in mode change (e.g. removed the executable bit on
+one side of history, turned the file into a symlink in another)
+
+=item B)
+The file is deleted in one version and modified in another (when this
+happens either the 2nd or 3rd stage line will be missing)
+
+=back
+
+Further, you can view the different versions of the file easily, by using
+either of:
+
+  eg show :STAGE:FILENAME
+  eg show INTERNAL-OBJECT-NAME
+
+Some examples using the output above:
+
+  eg show :2:foo.C
+  eg show dd7e1c6f0fefe118f0b63d9f10908c460aa317a6
+
+=head2 Resolve the conflicts
+
+=head3 1. Standard case.
+
+For each file with conflicts, edit the file to remove the conflict markers
+and provide just the correct version of the merged file. Then run
+
+  eg stage FILE
+
+to tell C<git> that you have resolved the conflicts in FILE.
+
+=head3 2. Special cases
+
+Nearly all special cases (and even the standard case) boil down to making
+sure the file has the correct contents, the correct permission bits and
+type, and then running
+
+  eg stage FILE
+
+If the file is a binary, then there will not be any conflict markers. In
+such a case, simply ensure that the contents of the file are what you want
+and then run C<eg stage>, as noted above.
+
+If the file is deleted on one side of history and changed in another,
+decide what contents the file should have. If the correct resolution is to
+delete the file, run
+
+  eg rm FILE
+
+Otherwise, put the appropriate contents in the file and run C<eg stage> as
+noted above.
+
+If the file has a mode conflict, then fix up the mode of the file (run
+C<man chmod> and C<man ln> for help on how to do so). Note that the modes
+used by C<git> are as follows:
+
+  100644  --  Normal, non-executable file
+  100755  --  File with the executable bit set
+  120000  --  symlink
+  160000  --  A git submodule (run 'git help submodule' for more info)
+
+=head2 Tell C<git> to continue the operation
+
+=head3 1. Standard case
+
+When all conflicts have been resolved, run
+
+  eg am --resolved
+
+Do NOT run C<eg commit> to continue an interrupted rebase (unless you want
+to manually insert a new commit; if you already accidentally ran C<eg commit>,
+then run C<eg reset HEAD~1> to undo it). If you try to continue without
+resolving all conflicts, the command will error out and tell you that some
+conflicts remain to be resolved.
+
+=head3 2. Special case -- skipping a commit
+
+If you do not want this particular commit to be included in the final
+result, run
+
+  eg am --skip
+
+=head2 Abort the operation
+
+To abort your rebase operation, simply run
+
+  eg am --abort
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

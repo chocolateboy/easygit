@@ -1,0 +1,62 @@
+=pod
+
+=head1 NAME
+
+clone - [[about]]
+
+=head1 USAGE
+
+    eg clone [--depth DEPTH] REPOSITORY [DIRECTORY]
+
+=head1 DESCRIPTION
+
+Obtains a copy of a remote repository, including all history by default.
+A C<--depth> option can be passed to only include a specified number of
+recent commits instead of all history (however, this option exists mostly
+due to the fact that users of other SCMs fail to understand that all
+history can be compressed into a size that is often smaller than the
+working copy).
+
+See C<eg help topic remote-urls> for a detailed list of the different ways
+to refer to remote repositories.
+
+=head1 EXAMPLES
+
+Get a local clone of cairo
+
+    $ eg clone git://git.cairographics.org/git/cairo
+
+Get a clone of a local project in a new directory C<mycopy>
+
+    $ eg clone /path/to/existing/repo mycopy
+
+Get a clone of a project hosted on someone's website, asking for only the
+most recent 20 commits instead of all history, and storing it in the
+local directory C<mydir>
+
+    $ eg clone --depth 20 http://www.random.machine/path/to/git.repo mydir
+
+=head1 OPTIONS
+
+=head2 --depth DEPTH
+
+    Only download the DEPTH most recent commits instead of all history
+
+=head1 Differences from C<git clone>
+
+C<eg clone> and C<git clone> are very similar, but C<eg clone> by default sets up
+a branch for each remote branch automatically (instead of only creating
+one branch, typically master).
+
+=head1 SEE ALSO
+
+Run C<git help clone> for a comprehensive list of options available.
+C<eg clone> is designed to accept the same options as C<git clone>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

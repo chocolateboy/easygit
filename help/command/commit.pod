@@ -1,0 +1,153 @@
+=pod
+
+=head1 NAME
+
+commit - [[about]]
+
+=head1 USAGE
+
+    eg commit [-a|--all-known] [-b|--bypass-unknown-check]
+        [--staged|-d|--dirty] [-F FILE | -m MSG] |--amend] [--] [FILE...]
+
+=head1 DESCRIPTION
+
+Records changes locally along with a log message describing the
+changes you have made. If no C<-F> or C<-m> option is supplied, an editor
+is opened for you to enter a log message.
+
+In order to prevent common errors, the commit will abort with a warning
+message if there are no changes to commit, there are conflicts from a
+merge, or if C<eg> detects that the choice of what to commit is ambiguous.
+In particular, if you have any "newly created" unknown files present,
+or if you have both staged changes (i.e. changes explicitly marked as
+ready for commit) and unstaged changes, then you will get a warning
+rather than having the commit occur. You can run C<eg status> to get the
+status of various files and their changes. These commit checks can be
+bypassed with various options.
+
+=head1 EXAMPLES
+
+Record current changes locally, not changing anything in CVS... OR... get
+a warning message if C<eg> detects that the choice of what to commit is not
+necessarily clear.
+
+    $ eg commit
+
+Record current changes, ignoring any unknown files present. Also
+remember the list of unknown files so that their existence will not
+trigger future "You have new unknown files present" warnings when not
+using the C<-b> flag.
+
+    $ eg commit -b
+
+Record brand new file and current changes.
+
+      $ eg stage file.c
+      $ eg commit -a
+
+Note: Running C<eg stage FILE> explicitly marks FILE as being ready to
+commit. Since you likely haven't explicitly marked your other changes as
+ready to commit, pass the C<-a> flag to specify that both kinds of changes
+should be recorded.
+
+(Advanced) Record staged changes, ignoring both unstaged changes and
+unknown files.
+
+    $ eg commit --staged
+
+=head1 OPTIONS
+
+=head2 --all-known, -a
+
+(Could also be called C<--act-like-other-vcses>). Commit both staged
+(i.e. explictly marked as ready for commit) changes and unstaged
+changes.
+
+Incompatible with explicitly specifying files to commit on the command
+line, and incompatible with the C<--staged> option.
+
+=head2 --bypass-unknown-check, -b
+
+Commit local changes, even if there are unknown files around. If this
+flag is not used and unknown files are currently present that were not
+present the last time the C<-b> flag was used, then the commit will be
+aborted with a warning message.
+
+=head2 --staged, --dirty, -d
+
+Commit only staged changes and bypass sanity checks. ("dirty" is kept
+as a synonym in order to provide a short (C<-d>) form. The term "dirty"
+is used to convey the fact that the working area will likely not be
+"clean" after a commit since unstaged changes will still be present).
+
+WARNING: Do not try to use C<-s> as a shorthand for C<--staged>; C<-s> has a
+different meaning (see C<git commit --help>)
+
+Incompatible with explicitly specifying files to commit on the command
+line, and incompatible with the C<--all-known> option.
+
+=head2 -F FILE
+
+Use the contents of C<FILE> as the commit message
+
+=head2 -m MSG
+
+Use C<MSG> as the commit message.
+
+=head2 --amend
+
+Amend the last commit on the current branch.
+
+=head1 Differences from C<git commit>
+
+The C<--staged> (and C<-d> and C<--dirty> aliases) are unique to C<eg commit>;
+C<git commit> behavior differs from C<eg commit> in that it acts by default
+like the C<--staged> flag was passed UNLESS either the C<-a> option is passed
+or files are explicitly listed on the command line.
+
+The C<--bypass-unknown-check> is unique to C<eg commit>; C<git commit>
+behavior differs by always turning on this functionality -- there is
+no way to have C<git commit> do an unknown files sanity check for you.
+
+C<-a> is not nearly as useful for C<eg commit> as it is for C<git commit>. C<-a>
+has the same behavior in both, but the "smart" behavior of C<eg commit>
+means it is only rarely needed.
+
+The C<--all-known> alias for C<-a> is known as C<--all> to C<git-commit>; I
+find the latter confusing and misleading and thus renamed to the former
+for C<eg commit>.
+
+To be precise about the behavior of a plain C<eg commit>:
+
+     If the working copy is clean                -> warn user: nothing to commit
+     else if there are unmerged files            -> warn user: unmerged files
+     else if there are new untracked files       -> warn user: new unknown files
+     else if both "staged" & unstaged changes[1] -> warn user: mix
+     else                                        -> run "git commit -a"
+
+Actually, C<-a> is not passed to C<git> if there are only staged changes present, but
+the result is the same. Note that this essentially boils down to making
+the user do less work (no need to remember C<-a> in the common case) and
+extending the sanity checks C<git commit> does (which currently only covers
+the clean working copy case) to also prevent a number of other very
+common user pitfalls.
+
+[1] The reason for putting "staged" in quotes comes from the case of
+running C<eg commit --amend> when you have local unstaged changes. Does
+the user want to merely amend the prior commit message or add their
+changes to the previous commit? (Even if the index matches HEAD at this
+time, we are committing relative to HEAD^1.) It is not clear what the
+user wants, so we warn and ask them to use C<-a> or C<--staged>.
+
+=head1 SEE ALSO
+
+Run C<git help commit> for a comprehensive list of options available.
+C<eg commit> is designed to accept the same options as C<git commit>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

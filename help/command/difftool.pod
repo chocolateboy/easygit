@@ -1,0 +1,51 @@
+=pod
+
+=head1 NAME
+
+difftool - [[about]]
+
+=head1 USAGE
+
+    eg difftool [--tool=<tool>] [--unstaged | --staged] [REVISION] [REVISION] [FILE...]
+
+=head1 DESCRIPTION
+
+Shows differences between different versions of the project using an
+external tool. By default, it shows the differences between the last
+locally recorded version and the version in the working copy.
+
+This command behaves just like C<eg diff>; see C<eg help diff> for more
+details.
+
+You can configure the default external tool with C<eg config>. You can
+specify the default tool by setting 'diff.tool'; you can configure the
+tool by setting 'difftool.<tool>.cmd'. See the 'Configuration File'
+section of C<git help config> for more details.
+
+=head1 EXAMPLE
+
+Show local unrecorded changes in vimdiff
+
+    $ eg difftool --tool=vimdiff
+
+See C<eg help diff> for more diff examples.
+
+=head1 Differences from C<git difftool>
+
+C<git difftool> behaves just like C<git diff>, but launches an external tool
+instead of using C<git>'s built-in machinery. C<eg diff> is quite different from
+C<git diff> (see C<eg help diff> for details); C<eg difftool> behaves just like
+C<eg diff>.
+
+=head1 SEE ALSO
+
+Run C<git help difftool> for a comprehensive list of options available.
+C<eg difftool> is designed to accept the same options as C<git difftool>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

@@ -1,0 +1,40 @@
+=pod
+
+=head1 NAME
+
+middle-of-bisect - How to continue or abort a bisection
+
+=head1 DESCRIPTION
+
+When git is bisecting, it will pick commits that need to be tested, check
+them out, and then let you test them. (Unless, of course, you give git a
+script that it can run to automatically test commits.) At this point you
+can test and then:
+
+=over
+
+=item 1) Continue
+
+  eg bisect good    # Mark the current commit as good, give me a new commit
+
+OR
+
+  eg bisect bad     # Mark the current commit as bad, give me a new commit
+
+=item 2) Skip this particular commit
+
+  eg bisect skip    # Can't test the current version; give me a new commit
+
+=item 3) Abort
+
+  eg bisect reset
+
+=back
+
+See C<git help bisect> for more details.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

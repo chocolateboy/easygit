@@ -1,0 +1,55 @@
+=pod
+
+=head1 NAME
+
+    config - [[about]]
+
+=head1 USAGE
+
+    eg config OPTION [ VALUE ]
+    eg config --unset OPTION
+    eg config [ --list ]
+
+=head1 DESCRIPTION
+
+Gets or sets configuration options.
+
+See the 'Configuration File' section of C<git help config> for a fairly
+comprehensive list of special options used by C<eg> (and C<git>).
+
+=head1 EXAMPLES
+
+Get the value of the configuration option C<user.email>
+
+    $ eg config user.email
+
+Set the value of the configuration option user.email to C<whizbang@flashy.org>
+
+    $ eg config user.email whizbang@flashy.org
+
+Unset the values of the configuration options C<branch.master.remote>
+and C<branch.master.merge>
+
+    $ eg config --unset branch.master.remote
+    $ eg config --unset branch.master.merge
+
+List all options that have been set
+
+    $ eg config --list  
+
+=head1 Differences from C<git config>
+
+None.
+
+=head1 SEE ALSO
+
+Run C<git help config> for a comprehensive list of options available.
+C<eg config> is designed to accept the same options as C<git config>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

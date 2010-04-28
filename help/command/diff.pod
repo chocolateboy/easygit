@@ -1,0 +1,179 @@
+=pod
+
+=head1 NAME
+
+diff - [[about]]
+
+=head1 USAGE
+
+    eg diff [--unstaged | --staged] [REVISION] [REVISION] [FILE...]
+
+=head1 DESCRIPTION
+
+Shows differences between different versions of the project. By default,
+it shows the differences between the last locally recorded version and the
+version in the working copy.
+
+=head1 EXAMPLES
+
+Show local unrecorded changes
+
+    $ eg diff
+
+In a project with the current branch being 'master', show the differences
+between the version before the last recorded commit and the working copy.
+
+    $ eg diff master~1
+
+Or do the same using "HEAD" which is a synonym for the current branch:
+
+      $ eg diff HEAD~1
+
+Show changes to the file myscript.py between 10 versions before the last
+recorded commit and the last recorded commit (assumes the current branch
+is 'master').
+
+    $ eg diff master~10 master myscript.py
+
+(Advanced) Show changes between staged (ready-to-be-committed) version of
+files and the working copy (use C<eg stage> to stage files). In other
+words, show the unstaged changes.
+
+    $ eg diff --unstaged
+
+(Advanced) Show changes between last recorded copy and the staged (ready-
+to-be-committed) version of files (use C<eg stage> to stage files). In
+other words, show the staged changes.
+
+      $ eg diff --staged
+
+(Advanced) Show changes between 5 versions before the last recorded
+commit and the currently staged (ready-to-be-committed) version of the
+repository.  (Use C<eg stage> to stage files).
+
+      $ eg diff --staged HEAD~5
+
+=head1 OPTIONS
+
+=head2 REVISION
+
+A reference to a recorded version of the repository, defaulting to HEAD
+(meaning the most recent commit on the current branch). See
+C<eg help topic revisions> for more details.
+
+=head2 --staged
+
+Show changes between the last commit and the staged copy of files.
+Cannot be used when two revisions have been specified.
+
+=head2 --unstaged
+
+Show changes between the staged copy of files and the current working
+directory. Cannot be used when a revision is specified.
+
+=head1 Differences from git diff
+
+Changes to eg diff relative to git diff are:
+
+=over
+
+=item 1 Different defaults for what to diff relative to
+
+=item 2 Providing a more consistent double-dot operator
+
+=back
+
+=head2 Different defaults for what to diff relative to
+
+The following illustrate the two changed defaults of eg diff:
+
+    eg diff            <=> git diff HEAD
+    eg diff --unstaged <=> git diff
+
+(Which is not 100% accurate due to merges; see below.) In more detail:
+
+The C<--unstaged> option is unique to C<eg diff>; to get the same behavior
+with C<git diff> you simply list no revisions and omit the C<--cached> flag.
+
+When neither C<--staged> nor C<--unstaged> are specified to C<eg diff> and no
+revisions are given, C<eg diff> will pass along the revision "HEAD" to
+C<git diff>.
+
+The C<--staged> option is an alias for C<--cached> unique to C<eg diff>; the
+purpose of the alias is to reduce the number of different names in
+C<git> used to refer to the same concept. (Update: the C<--staged> flag is now
+part of C<git> with the same meaning as in C<eg>.)
+
+Merges: The above is slightly modified if the user has an incomplete
+merge; if the user has conflicts during a merge (or uses C<--no-commit> when
+calling merge) and then tries C<eg diff>, it will abort with a message
+telling the user that there is no "last" commit and will provide
+alternative suggestions.
+
+=head2 Providing a more consistent double-dot operator
+
+The C<..> operator of git diff (e.g. C<git diff master..devel>) means what
+the C<...> operator of git log means, and vice-versa. This causes lots of
+confusion. We fix this by making the C<..> operator of C<eg diff>
+do exactly what the C<...> operator of git diff does. To see why:
+
+Meanings of git commands, as a reminder (A and B are revisions):
+
+  git diff A..B  <=> git diff A B                      # Endpoint difference
+  git diff A...B <=> git diff $(git merge-base A B) B  # Changes from base
+
+Why this is confusing (compare to above):
+
+  git log A..B  <=> git log ^$(git merge-base A B) B   # Changes from base
+  git log A...B <=> git log A B ^$(git merge-base A B) # Endpoint difference
+
+So, my translation:
+
+  eg diff A B   <=>  git diff A B    <=> git diff A..B
+  eg diff A..B  <=>  git diff A...B
+  eg diff A...B <=>  git diff A...B
+
+Reasons for this change:
+
+=over
+
+=item *
+
+New users automatically get sane behavior, and use either C<eg diff A B>
+or C<eg diff A..B>, each doing what one would expect. They do not ever
+realize that C<A...B> is a bit weird because they have no need to try to
+use it; C<eg diff A B> covers their needs.
+
+=item *
+
+Users worried about switching between C<eg> and C<git> without having to
+modify their command lines can always use either C<diff A B> or
+C<diff A...B>, but never any other form; using this subset ensures that
+both C<eg> and C<git> behave identically.
+
+=item *
+
+Users only access C<git diff A..B> behavior through C<eg diff A B>, which
+is less typing and makes more sense.
+
+=item *
+
+Since C<git diff A..B> and C<git diff A B> are the same, the latter is far
+more common, and the former is confusing, odds are that if any C<git>
+user suggests someone use C<git diff A..B> they probably really meant
+C<git diff A...B>.
+
+=back
+
+=head1 SEE ALSO
+
+Run C<git help diff> for a comprehensive list of options available.
+C<eg diff> is designed to accept the same options as C<git diff>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

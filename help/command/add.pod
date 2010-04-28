@@ -1,0 +1,27 @@
+=pod
+
+=head1 NAME
+
+Add - [[about]]
+
+=head1 DESCRIPTION
+
+C<eg add> is provided for backward compatibility; it has identical usage and
+functionality as 'eg stage'.  See 'eg help stage' for more details.
+
+=head1 Differences from C<git add>
+
+None.
+
+=head1 SEE ALSO
+
+Run C<git help add> for a comprehensive list of options available.
+C<eg add> is designed to accept the same options as C<git add>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

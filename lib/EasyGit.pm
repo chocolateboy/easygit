@@ -14,169 +14,86 @@
 use strict;
 use warnings;
 
-package main;
+package EasyGit::Command;
 
-use Getopt::Long;
-use Cwd qw(getcwd abs_path);
-use List::Util qw(max);
-use File::Temp qw/ tempfile /;
+use EasyGit::Command::Common;
 
-# configurables
-my $DEBUG = $ENV{EASYGIT_DEBUG} || 0;
-my $GIT_CMD = $ENV{EASYGIT_GIT_CMD} || "git";  # Includes any global args, thus "git --exec-path=..."
-my $USE_PAGER = exists($ENV{EASYGIT_USE_PAGER}) ? $ENV{EASYGIT_USE_PAGER} : -1;
+# set via has_command()
+has command_name => (
+    isa      => 'String',
+    required => 1,
+);
 
-# globals :-(
-my $OUTFH;
-my $VERSION = "1.7.0.4.dev";
-my $EG_EXEC = abs_path($0);
-my %ALIAS;
-my %COMMAND;    # command=>{section, short_description} mapping
-my $SECTION = {
-  'creation' =>
-    { order => 1,
-      desc  => 'Creating repositories',
-    },
-  'discovery' =>
-    { order => 2,
-      desc  => 'Obtaining information about changes, history, & state',
-    },
-  'modification' =>
-    { order => 3,
-      desc  => 'Making, undoing, or recording changes',
-    },
-  'projects' =>
-    { order => 4,
-      desc  => 'Managing branches',
-    },
-  'collaboration' =>
-    { order => 5,
-      desc  => 'Collaboration'
-    },
-  'timesavers' =>
-    { order => 6,
-      desc  => 'Time saving commands'
-    },
-  'compatibility' =>
-    { order => 7,
-      extra => 1,
-      desc  => 'Commands provided solely for compatibility with other ' .
-               'prominent SCMs'
-    },
-  'misc' =>
-    { order => 8,
-      extra => 1,
-      desc  => 'Miscellaneous'
-    },
-  };
-my ($CURDIR, $TOPDIR, $GITDIR);
+# Our "see also" section in help usually references the same subsection
+# as our class name. This is exported into template help pages e.g. command.tt
+# set via has_command
+has git_equivalent => (
+    isa      => 'String',
+    required => 1,
+);
 
-## Commands to list in help even though we haven't overridden the git versions
-## (yet, in most cases)
-INIT {
-  %COMMAND = (
-    blame => {
-      unmodified_help => 1,
-      unmodified_behavior => 1,
-      extra => 1,
-      section => 'discovery',
-      about => 'Show what version and author last modified each line of a file'
-      },
-    bisect => {
-      unmodified_help => 1,
-      unmodified_behavior => 1,
-      section => 'timesavers',
-      about => 'Find the change that introduced a bug by binary search'
-      },
-    grep => {
-      unmodified_help => 1,
-      unmodified_behavior => 1,
-      extra => 1,
-      section => 'discovery',
-      about => 'Print lines of known files matching a pattern'
-      },
-    mv => {
-      unmodified_help => 1,
-      unmodified_behavior => 1,
-      section => 'modification',
-      about => 'Move or rename files (or directories or symlinks)'
-      },
-  );
-}
+# set via has_command()
+has git_repo_needed => (
+    isa      => 'Boolean',
+    required => 1,
+    default  => 0,
+);
 
-
-
-#*************************************************************************#
-#*************************************************************************#
-#*************************************************************************#
-#                   CLASSES DEFINING ACTIONS TO PERFORM                   #
-#*************************************************************************#
-#*************************************************************************#
-#*************************************************************************#
-
-###########################################################################
-# subcommand, a base class for all eg subcommands                         #
-###########################################################################
-package subcommand;
-sub new {
-  my $class = shift;
-  my $self = {git_repo_needed => 0, @_};  # Hashref initialized as we're told
-  bless($self, $class);
-
-  # Our "see also" section in help usually references the same subsection
-  # as our class name.
-  $self->{git_equivalent} = ref($self) if !defined $self->{git_equivalent};
-
+sub BUILD {
   # We allow direct instantiation of the subcommand class only if they
   # provide a command name for us to pass to git.
-  if (ref($class) eq "subcommand" && !defined $self->{command}) {
+  if (ref($class) eq "subcommand" && not(defined $self->{command})) {
     die "Invalid subcommand usage"
   }
 
   # Most commands must be run inside a git working directory
-  unless (!$self->{git_repo_needed} || (@ARGV > 0 && $ARGV[0] eq "--help")) {
-    $self->{git_dir} = RepoUtil::git_dir();
-    die "Must be run inside a git repository!\n" if !defined $self->{git_dir};
+  if ($self->{git_repo_needed} || not(@ARGV > 0 && $ARGV[0] eq "--help")) {
+    $self->{git_dir} = EasyGit::RepoUtil::git_dir();
+    die "Must be run inside a git repository!\n" unless defined $self->{git_dir};
   }
 
   # Many commands do not work if no commit has yet been made
-  if ($self->{initial_commit_error_msg} &&
-      RepoUtil::initial_commit() &&
-      (@ARGV < 1 || $ARGV[0] ne "--help")) {
+  if ($self->{initial_commit_error_msg} && EasyGit::RepoUtil::initial_commit() && (@ARGV < 1 || $ARGV[0] ne "--help")) {
     die "$self->{initial_commit_error_msg}\n";
   }
 
   return $self;
 }
 
-sub help {
-  my $self = shift;
-  my $package_name = ref($self);
-  $package_name =~ s/_/-/;  # Packages use underscores, commands use dashes
+method help {
+  my $command_name = $self->command_name;
 
-  my $git_equiv = $self->{git_equivalent};
-  $git_equiv =~ s/_/-/;  # Packages use underscores, commands use dashes
-
-  if ($package_name eq "subcommand") {
-    exit ExecUtil::execute("$GIT_CMD $self->{command} --help")
+  if ($command_name eq "subcommand") {
+    exit EasyGit::ExecUtil::execute("$GIT_CMD $self->{command} --help")
   }
 
-  $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($USE_PAGER == 1) ? "less" :
-             ($USE_PAGER == 0) ? "cat" :
-             `$GIT_CMD config core.pager` || "less";
+  my $git_equiv = $self->git_equivalent;
+
+  my $help = $self->load_help($command_name,
+      {
+	  git_equiv => $git_equiv,
+	  command_name => $command_name,
+      }
+  );
+
+  $ENV{LESS} //= 'FRSX';
+
+  my $less = ($USE_PAGER == 1) ? 'less' :
+             ($USE_PAGER == 0) ? 'cat' :
+             `$GIT_CMD config core.pager` || 'less';
   chomp($less);
-  open(OUTPUT, "| $less");
-  print OUTPUT "$package_name: $COMMAND{$package_name}{about}\n";
-  print OUTPUT $self->{'help'};
-  print OUTPUT "\nDifferences from git $package_name:";
-  print OUTPUT "\n  None.\n" if !defined $self->{'differences'};
-  print OUTPUT $self->{'differences'} if defined $self->{'differences'};
+  open(OUTPUT, "| $less") or die "can't open $less for output";
+  print OUTPUT "$command_name: $COMMAND{$package_name}->{about}\n";
+  print OUTPUT $self->{help};
+  print OUTPUT "\nDifferences from git $command_name:";
+  print OUTPUT "\n  None.\n" unless defined $self->{differences};
+  print OUTPUT $self->{differences} if defined $self->{differences};
+
   if ($git_equiv) {
     print OUTPUT "\nSee also\n";
     print OUTPUT <<EOF;
   Run 'git help $git_equiv' for a comprehensive list of options available.
-  eg $package_name is designed to accept the same options as git $git_equiv, and
+  eg $command_name is designed to accept the same options as git $git_equiv, and
   with the same meanings unless specified otherwise in the above
   "Differences" section.
 EOF
@@ -185,19 +102,14 @@ EOF
   exit 0;
 }
 
-sub preprocess {
-  my $self = shift;
-
-  return if (scalar(@ARGV) > 0 && $ARGV[0] eq "--");
-  my $result=main::GetOptions("--help" => sub { $self->help() });
+method preprocess {
+  return if (@ARGV and $ARGV[0] eq '--');
+  my $result = main::GetOptions('--help' => sub { $self->help() });
 }
 
-sub run {
-  my $self = shift;
-  my $package_name = ref($self);
-
-  my $subcommand = 
-    $package_name eq "subcommand" ? $self->{'command'} : $package_name;
+method run {
+  my $command_name = $self->command_name;
+  my $subcommand = $command_name eq "subcommand" ? $self->{'command'} : $command_name;
 
   @ARGV = Util::quote_args(@ARGV);
   return ExecUtil::execute("$GIT_CMD $subcommand @ARGV", ignore_ret => 1);
@@ -206,402 +118,145 @@ sub run {
 ###########################################################################
 # add                                                                     #
 ###########################################################################
-package add;
-@add::ISA = qw(subcommand);
-INIT {
-  $COMMAND{add} = {
-    unmodified_behavior => 1,
-    section => 'compatibility',
-    about => 'Mark content in files as being ready for commit'
-    };
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Description:
-  eg add is provided for backward compatibility; it has identical usage and
-  functionality as 'eg stage'.  See 'eg help stage' for more details.
-";
-  return $self;
-}
+package EasyGit::Command::Add;
+
+use EasyGit::Command::Common;
+
+extends 'EasyGit::Command';
+
+has_command add => (
+    unmodified_behavior => 1,
+    section             => 'compatibility',
+    about               => 'Mark content in files as being ready for commit'
+    git_repo_needed     => 1,
+);
 
 ###########################################################################
 # apply                                                                   #
 ###########################################################################
-package apply;
-@apply::ISA = qw(subcommand);
-INIT {
-  $COMMAND{apply} = {
+
+package EasyGit::Command::Apply;
+
+use EasyGit::Command::Common;
+
+has_command apply => (
     about => 'Apply a patch in a git repository'
-  };
-}
+);
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 0, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg apply [--staged] [-R | --reverse] [-pNUM]
-
-Description:
-  Applies a patch to a git repository.
-
-Examples:
-  Reverse changes in foo.patch
-      \$ eg apply -R foo.patch
-
-  (Advanced) Reverse changes since the last commit to the version of foo.c
-  in the staging area (equivalent to 'eg revert --staged foo.c'):
-      \$ eg diff --staged foo.c | eg apply -R --staged
-
-Options:
-  --staged
-    Apply the patch to the staged (explicitly marked as ready to be committed)
-    versions of files
-
-  --reverse, -R
-    Apply the patch in reverse.
-
-  -pNUM
-    Remove NUM leading paths from filenames.  For example, with the filename
-      /home/user/bla/foo.c
-    using -p0 would leave the name unmodified, using -p1 would yield
-      home/user/bla/foo.c
-    and using -p3 would yield
-      bla/foo.c
-";
-  $self->{'differences'} = '
-  eg apply is identical to git apply except that it accepts --staged as a
-  synonym for --cached.
-';
-  return $self;
-}
-
-sub preprocess {
-  my $self = shift;
-
+method preprocess {
   my $result = main::GetOptions("--help" => sub { $self->help() });
-  foreach my $i (0..$#ARGV) {
-    $ARGV[$i] = "--cached" if $ARGV[$i] eq "--staged";
-  }
+  @ARGV = map { ($_ eq '--staged') ? '--cached' : $_ } @ARGV;
 }
 
 ###########################################################################
 # branch                                                                  #
 ###########################################################################
-package branch;
-@branch::ISA = qw(subcommand);
-INIT {
-  $COMMAND{branch} = {
-    section => 'projects',
-    about => 'List, create, or delete branches'
-    };
-  $ALIAS{'br'} = "branch";
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg branch [-r]
-  eg branch [-s] NEWBRANCH [STARTPOINT]
-  eg branch -d BRANCH
+package EasyGit::Command::Branch;
 
-Description:
-  List the existing branches that you can switch to, create a new branch,
-  or delete an existing branch.  For switching the working copy to a
-  different branch, use the eg switch command instead.
+use EasyGit::Command::Common;
 
-  Note that branches are local; creation of branches in a remote repository
-  can be accomplished by first creating a local branch and then pushing the
-  new branch to the remote repository using eg push.
+has_command branch => (
+    section         => 'projects',
+    about           => 'List, create, or delete branches',
+    git_repo_needed => 1,
+    alias           => 'br'
+);
 
-Examples
-  List the available local branches
-      \$ eg branch
-
-  Create a new branch named random_stuff, based off the last commit.
-      \$ eg branch random_stuff
-
-  Create a new branch named sec-48 based off the 4.8 branch
-      \$ eg branch sec-48 4.8
-
-  Delete the branch named bling
-      \$ eg branch -d bling
-
-  Create a new branch named my_fixes in the default remote repository
-      \$ eg branch my_fixes
-      \$ eg push --branch my_fixes
-
-  (Advanced) Create a new branch named bling, based off the remote tracking
-  branch of the same name
-      \$ eg branch bling origin/bling
-  See 'eg remote' for more details about setting up named remotes and
-  remote tracking branches, and 'eg help topic storage' for more details on
-  differences between branches and remote tracking branches.
-
-Options:
-  -d
-    Delete specified branch
-
-  -r
-    List remote tracking branches (see 'eg help topic storage') for more
-    details.  This is useful when using named remote repositories (see 'eg
-    help remote')
-
-  -s
-    After creating the new branch, switch to it
-";
-  $self->{'differences'} = '
-  eg branch is identical to git branch other than adding a new -s option for
-  switching to a branch immediately after creating it.
-';
-  return $self;
-}
-
-sub run {
-  my $self = shift;
-
+method run {
   my $switch = 0;
-  if (scalar(@ARGV) > 1 && $ARGV[0] eq "-s") {
-    $switch = 1;
+
+  if (@ARGV and $ARGV[0] eq '-s') {
     shift @ARGV;
+    $switch = 1;
   }
 
   @ARGV = Util::quote_args(@ARGV);
   my $ret = ExecUtil::execute("$GIT_CMD branch @ARGV", ignore_ret => 1);
-  $ret = ExecUtil::execute("$GIT_CMD checkout $ARGV[0]", ignore_ret => 1)
-    if ($switch && $ret == 0);
+  $ret = ExecUtil::execute("$GIT_CMD checkout $ARGV[0]", ignore_ret => 1) if ($switch && $ret == 0);
   return $ret;
 }
 
 ###########################################################################
 # bundle                                                                  #
 ###########################################################################
-package bundle;
-@bundle::ISA = qw(subcommand);
-INIT {
-  $COMMAND{bundle} = {
-    extra => 1,
-    section => 'collaboration',
-    about => 'Pack repository updates (or whole repository) into a file'
-    };
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(
-    git_repo_needed => 1,
-    initial_commit_error_msg => "No bundles can be created until a commit " .
-                                "has been made.",
-    @_
-    );
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg bundle create FILENAME [REFERENCES]
-  eg bundle create-update NEWFILENAME OLDFILENAME [REFERENCES]
-  eg bundle verify FILENAME
+package EasyGit::Command::Bundle;
 
-Description:
-  Bundle creates a file which contains a repository, or a subset thereof.
-  This is useful when two machines cannot be directly connected (thus
-  preventing use of the standard interactive git protocols -- git, ssh,
-  rsync or http), but changes still need to be communicated between the
-  machines.
+use EasyGit::Command::Common;
 
-  The remote side can use the resulting file (or the path to it) as the URL
-  for the repository they want to clone or pull updates from.
+has_command bundle => (
+    extra                    => 1,
+    section                  => 'collaboration',
+    about                    => 'Pack repository updates (or whole repository) into a file',
+    git_repo_needed          => 1,
+    initial_commit_error_msg => 'No bundles can be created until a commit has been made.',
+);
 
-Examples
-  Create a bundle in the file repo.bundle which contains the whole repository
-      \$ eg bundle create repo.bundle
+method preprocess {
+    # Parse options
+    my @args;
+    my $result = main::GetOptions("--help" => sub { $self->help() });
 
-  After getting the bundle named repo.bundle from a collaborator (which
-  must contain \"HEAD\" as one of the references if you explicitly list which
-  ones to be included at creation time), clone the repository into the
-  directory named project-name
-      \$ eg clone /path/to/repo.bundle project-name
+    # Get the (sub)subcommand
+    $self->{subcommand} = shift @ARGV;
+    push(@args, $self->{subcommand});
 
-  Create a bundle in the file called new-repo containing only updates since
-  the bundle old-repo was created.
-      \$ eg bundle create-update new-repo old-repo
+    if ($self->{subcommand} eq 'create') {
+        my $filename = shift @ARGV || die "Error: need a filename to write bundle to.\n";
+        push(@args, $filename);    # Handle the filename
 
-  Pulls updates from a new bundle we have been sent.
-      \$ eg pull /path/to/repo.bundle
+        unless (@ARGV) {
+            push(@args, ('--all', 'HEAD'));
+        }
+    } elsif ($self->{subcommand} eq 'create-update') {
+        pop(@args);                # 'create-update' isn't a real git bundle subcommand
 
-  Pull updates from a new bundle we have been sent, if we first overwrite
-  the bundle we originally original cloned from with the new bundle
-      \$ eg pull
+        my $newname = shift @ARGV || die "You must specify a new and an old filename.\n";
+        my $oldname = shift @ARGV || die "You must also specify an old filename\n";
 
-  (Advanced) Create a bundle containing the two branches debug and
-  installer, and the tag named v2.3, in the file called my-changes
-      \$ eg bundle create my-changes debug installer v2.3
+        die "$oldname does not exist.\n" unless -f $oldname;
 
-  (Advanced) Create a bundle in the file called new-repo that contains
-  updates since the bundle old-bundle was created, but don't include the
-  new branch secret-stuff or crazy-idea
-      \$ eg bundle create-update new-repo old-bundle ^secret-stuff ^crazy-idea
-      
-Options:
-  eg bundle create FILENAME [REFERENCES]
-  eg bundle create-update NEWFILENAME OLDFILENAME [REFERENCES]
-  eg bundle verify FILENAME
+        my ($retval, $output) = ExecUtil::execute_captured("$GIT_CMD bundle list-heads $oldname");
+        my @lines = split '\n', $output;
+        my @refs = map { m#^([0-9a-f]+)# && "^$1" } @lines;
 
-  create FILENAME [REFERENCES]
-    Create a new bundle in the file FILENAME.  If no REFERENCES are passed,
-    all branches and tags (plus \"HEAD\") will be included.  See below for
-    a basic explanation of REFERENCES.
-
-  create-update NEWFILENAME OLDFILENAME [REFERENCES]
-
-    Create a new bundle in the file NEWFILENAME, but don't include any
-    commits already included in OLDFILENAME.  See below for a basic
-    explanation of REFERNCES.  By default, any new branch or tags will be
-    included as well; exclude specific branches or tags by passing ^BRANCH
-    or ^TAG as a reference; see below for more details.
-
-  verify FILENAME
-    Check whether the given bundle in FILENAME will cleanly apply to the
-    current repository.
-
-  REFERENCES
-    Which commits to include or exclude from the bundle.  Probably best
-    explained by example:
-
-      Example            Meaning
-      -----------------  --------------------------------------------------
-      master             Include the master branch
-      master~10..master  Include the last 10 commits on the master branch
-      ^baz foo bar       Include commits on the foo or bar branch, except for
-                           those that are in the baz branch
-";
-  $self->{'differences'} = '
-  eg bundle differs from git bundle in two ways:
-    (1) eg bundle defaults to "--all HEAD" if no revisions are passed to create
-    (2) eg bundle provides a create-update subcommand
-';
-  return $self;
-}
-
-sub preprocess {
-  my $self = shift;
-
-  #
-  # Parse options
-  #
-  my @args;
-  my $result=main::GetOptions("--help" => sub { $self->help() });
-
-  # Get the (sub)subcommand
-  $self->{subcommand} = shift @ARGV;
-  push(@args, $self->{subcommand});
-
-  if ($self->{subcommand} eq 'create') {
-    my $filename = shift @ARGV ||
-      die "Error: need a filename to write bundle to.\n";
-    push(@args, $filename);  # Handle the filename
-    if (!@ARGV) {
-      push(@args, ("--all", "HEAD"));
+        push(@args, ('create', $newname, '--all', 'HEAD', @refs));
     }
-  }
-  elsif ($self->{subcommand} eq 'create-update') {
-    pop(@args);  # 'create-update' isn't a real git bundle subcommand
 
-    my $newname = shift @ARGV || 
-      die "You must specify a new and an old filename.\n";
-    my $oldname = shift @ARGV || 
-      die "You must also specify an old filename\n";
+    push(@args, @ARGV);
 
-    die "$oldname does not exist.\n" if ! -f $oldname;
-
-    my ($retval, $output) =
-      ExecUtil::execute_captured("$GIT_CMD bundle list-heads $oldname");
-    my @lines = split '\n', $output;
-
-    my @refs = map { m#^([0-9a-f]+)# && "^$1" } @lines;
-    push(@args, ('create', $newname, "--all", "HEAD", @refs));
-  }
-  push(@args, @ARGV);
-
-  # Reset @ARGV with the built up list of arguments
-  @ARGV = @args;
+    # Reset @ARGV with the built up list of arguments
+    @ARGV = @args;
 }
 
 ###########################################################################
 # cat                                                                     #
 ###########################################################################
-package cat;
-@cat::ISA = qw(subcommand);
-INIT {
-  $COMMAND{cat} = {
-    new_command => 1,
-    extra => 1,
-    section => 'compatibility',
-    about => 'Output the current or specified version of files'
-    };
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(
-    git_repo_needed => 1,
-    git_equivalent => 'show',
-    initial_commit_error_msg => "Error: Cannot show committed versions of " .
-                                "files when no commits have occurred.",
-    @_
-    );
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg cat [REVISION:]FILE...
+package EasyGit::Command::Cat;
 
-Description:
-  Output the specified file(s) as of the given revisions.
+use EasyGit::Command::Common;
 
-  Note that this basically is just a compatibility alias provided for users
-  of other SCMs.  You should consider using 'git show' instead, though with
-  core git whenever you specify a REVISION, you will need to specify the
-  path to FILE relative to the toplevel project directory, instead of a
-  path for FILE relative to the current directory.
+has_command cat => (
+    new_command              => 1,
+    extra                    => 1,
+    section                  => 'compatibility',
+    about                    => 'Output the current or specified version of files',
+    git_repo_needed          => 1,
+    git_equivalent           => 'show',
+    initial_commit_error_msg => 'Error: Cannot show committed versions of files when no commits have occurred.',
+);
 
-Examples
-  Output the most recently committed version of foo.c
-      \$ eg cat foo.c
-
-  Output the version of bar.h from the 5th to last commit on the
-  ugly_fixes branch
-      \$ eg cat ugly_fixes~5:bar.h
-
-  Concatenate the version of hello.c from two commits ago and the
-  version of world.h from the branch timbuktu, and output the result:
-      \$ eg cat HEAD~1:hello.c timbuktu:world.h
-";
-  $self->{'differences'} = '
-  The output of "git show FILE" is probably confusing to users at first,
-  as is the need to specify files relative to the top of the git project
-  rather than relative to the current directory.  Thus, "eg cat FILE"
-  calls "git show HEAD:PATH/TO/FILE".
-';
-  return $self;
-}
-
-sub preprocess {
-  my $self = shift;
-
-  my $result=main::GetOptions("--help" => sub { $self->help() });
+method preprocess {
+  my $result = main::GetOptions("--help" => sub { $self->help() });
 
   # Get important directories
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
 
   my @args;
-  foreach my $arg (@ARGV) {
+  for my $arg (@ARGV) {
     if ($arg !~ /:/) {
       my ($path) = Util::reroot_paths__from_to_files($cur_dir, $top_dir, $arg);
       push(@args, "HEAD:$path");
@@ -615,54 +270,35 @@ sub preprocess {
   @ARGV = @args;
 }
 
-sub run {
-  my $self = shift;
-
-  @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$GIT_CMD show @ARGV", ignore_ret => 1);
+method run {
+  return ExecUtil::execute([ $GIT_CMD, 'show', @ARGV ], ignore_ret => 1);
 }
 
-###########################################################################
-# changes                                                                 #
-###########################################################################
-package changes;
-@changes::ISA = qw(subcommand);
-INIT {
-  $COMMAND{changes} = {
-    new_command => 1,
-    section => 'misc',
-    about => 'Provide an overview of the changes from git to eg'
-    };
-}
+1;
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, git_equivalent => '', @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg changes [--details]
+package EasyGit::Changes;
 
-Options
-  --details
-    In addition to the summary of which commands were changed, list the
-    changes to each command.
-";
-  $self->{'differences'} = '
-  eg changes is unique to eg; git does not have a similar command.
-';
-  return $self;
-}
+use EasyGit::Command::Common;
+
+has_command changes => (
+    new_command     => 1,
+    section         => 'misc',
+    about           => 'Provide an overview of the changes from git to eg',
+    git_repo_needed => 1,
+    git_equivalent  => '',
+);
 
 sub preprocess {
-  my $self = shift;
+    my $self = shift;
 
-  $self->{details} = 0;
-  my $result = main::GetOptions(
-    "--help"    => sub { $self->help() },
-    "--details" => \$self->{details},
+    $self->{details} = 0;
+
+    my $result = main::GetOptions(
+        "--help" => sub { $self->help() },
+        "--details" => \$self->{details},
     );
-  die "Unrecognized arguments: @ARGV\n" if @ARGV;
+
+    die "Unrecognized arguments: @ARGV\n" if @ARGV;
 }
 
 sub run {
@@ -728,84 +364,20 @@ sub run {
   close(OUTPUT);
 }
 
+1;
+
 ###########################################################################
 # checkout                                                                #
 ###########################################################################
-package checkout;
-@checkout::ISA = qw(subcommand);
-INIT {
-  $COMMAND{checkout} = {
+
+package EasyGit::Command::Checkout;
+
+use EasyGit::Command::Common;
+
+has_command checkout => (
     section => 'compatibility',
-    about => 'Compatibility wrapper for clone/switch/revert'
-  };
-}
-
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 0, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg checkout [-b] BRANCH
-  eg checkout [REVISION] PATH...
-
-Description:
-  eg checkout mostly exists as a compatibility wrapper for those used to
-  other systems (cvs/svn and git).  If you:
-    (1) want a new copy of the source code from a remote repository
-    OR
-    (2) want to switch your working copy to a different branch
-    OR
-    (3) want to revert the contents of a file to its content from a
-        different revision
-  Then use:
-    (1) eg clone
-    (2) eg switch
-    (3) eg revert
-
-  eg checkout will accept the same arguments as eg clone (for getting a new
-  copy of the source code from a remote repository), but will provide an
-  error message and tell the user to use eg clone in such cases.
-
-  The first usage form of eg checkout is used to switch to a different
-  branch (optionally also creating it first).  This is something that can
-  be done with no network connectivity in git and thus eg.  Users can find
-  identical functionality in eg switch.
-
-  The second usage form of eg checkout is used to replace files in the
-  working copy with versions from an older commit, i.e. to revert files to
-  an older version.  Note that this only works when the specified files
-  also existed in the older version (eg checkout will not delete or unstage
-  files for you), does not work for the initial commit (since there's no
-  older revision to revert back to -- unless you are an advanced user
-  interested in just undoing the changes since the most recent staging),
-  and cannot be used to undo an incomplete merge (since it only operates on
-  a subset of files and not everything since a given commit).  Users can
-  find the same functionality (without all the caveats) as well as other
-  capabilities in eg revert.
-
-Examples:
-  Switch to the stable branch
-      \$ eg checkout stable
-
-  Replace foo.c with the third to last version before the most recent
-  commit (Note that HEAD always refers to the current branch, and the
-  current branch always refers to its most recent commit)
-      \$ eg checkout HEAD~3 foo.c
-";
-  $self->{'differences'} = '
-  eg checkout accepts all parameters that git checkout accepts with the
-  same meanings and same output (eg checkout merely calls git checkout in
-  such cases).
-
-  The only difference between eg and git regarding checkout is that eg
-  checkout will also accept all arguments to git clone, and then tell users
-  that they must have meant to run eg clone (a much nicer error message for
-  users trying to get a copy of source code from a remote repository than
-  "fatal: Not a git repository").
-';
-  return $self;
-}
+    about   => 'Compatibility wrapper for clone/switch/revert'
+);
 
 sub _looks_like_git_repo ($) {
   my $path = shift;
@@ -840,10 +412,9 @@ sub preprocess {
   $self->{command} = 'checkout';
   die "eg checkout requires at least one argument.\n" if !@ARGV;
 
-  #
   # Determine whether this should be a call to git clone or git checkout
-  #
   my $clone_protocol = qr#^(?:git|ssh|http|https|rsync)://#;
+
   if (_looks_like_git_repo($ARGV[-1]) ||
       (! -d $ARGV[-1] && @ARGV > 1 && _looks_like_git_repo($ARGV[-2]))
      ) {
@@ -854,7 +425,6 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @ARGV = Util::quote_args(@ARGV);
   if ($self->{command} ne 'clone') {
     # If this operation isn't a clone, then we should have checked for
     # whether we are in a git directory.  But we didn't do that, just in
@@ -862,108 +432,34 @@ sub run {
     $self->{git_dir} = RepoUtil::git_dir();
     die "Must be run inside a git repository!\n" if !defined $self->{git_dir};
 
-    return ExecUtil::execute("$GIT_CMD checkout @ARGV", ignore_ret => 1);
+    return ExecUtil::execute([ $GIT_CMD, 'checkout', @ARGV ], ignore_ret => 1);
   } else {
     die "Did you mean to run\n  eg clone @ARGV\n?\n";
   }
 }
 
+1;
+
 ###########################################################################
 # cherry_pick                                                             #
 ###########################################################################
+
 package cherry_pick;
-@cherry_pick::ISA = qw(subcommand);
-INIT {
-  $COMMAND{"cherry-pick"} = {
-    extra => 1,
-    section => 'modification',
-    about => 'Apply (or reverse) a commit, usually from another branch'
-  };
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg cherry-pick [--reverse] [--edit] [-n] [-m parent-number] [-s] [-x] REVISION
+use EasyGit::Command::Common;
 
-Description:
-  Given an existing revision, apply the change between its parent and it
-  (or reverse apply if the --reverse option is present), and record a new
-  revision with this change.  Your working tree must be clean (no local
-  unsaved modifications) in order to run eg cherry-pick.
-
-Examples:
-  Apply the fix 3 commits behind the tip of the experimental branch
-  (i.e. the fix made in experimental~3) to the current branch
-      \$ eg cherry-pick experimental~3
-
-  Make a new commit that reverses the changes made in the most recent
-  commit of the current branch
-      \$ eg cherry-pick -R HEAD
-
-Options:
-  --reverse, --revert, -R
-    Reverse apply the changes from the specified commit (i.e. revert the
-    specified revision with a new commit).
-
-  --edit, -e
-    With this option, eg cherry-pick will let you edit the commit message
-    prior to committing.
-
-  -x
-    When recording the commit, append to the original commit message a note
-    that indicates which commit this change was cherry-picked from.  Append
-    the note only for cherry picks without conflicts. Do not use this
-    option if you are cherry-picking from your private branch because the
-    information is useless to the recipient. If on the other hand you are
-    cherry-picking between two publicly visible branches (e.g. backporting
-    a fix to a maintenance branch for an older release from a development
-    branch), adding this information can be useful.
-
-    This option is turned on automatically when -R is specified.
-
-  --mainline parent-number, -m parent-number
-    cherry-pick always applies the changes between a revision and its
-    parent; thus if a revision represents a merge commit, it is not clear
-    which parent cherry-pick should get the changes relative to.  This
-    option specifies the parent number (starting from 1) of the mainline
-    and allows cherry-pick to replay the change relative to the specified
-    parent.
-
-  --no-commit, -n
-    Usually cherry-pick automatically creates a commit. This flag applies
-    the change necessary to cherry-pick the named revision to your working
-    tree and staging area, but does not make the commit. In addition, when
-    this option is used, the staging area can contain unsaved changes and
-    the cherry-pick will be done against the beginning state of your
-    staging area.
-
-    This is useful when cherry-picking more than one commit into a single
-    combined change.
-
-  --signoff, -s
-    Add Signed-off-by line at the end of the commit message.
-
-  REVISION
-    A reference to a recorded version of the repository.  See 'eg help
-    topic revisions' for more details.
-";
-  $self->{'differences'} = '
-  eg cherry-pick contains both the functionality of git cherry-pick and git
-  revert.  If the -R option is specified, eg cherry-pick calls git revert
-  (after removing the -R option); otherwise it calls git cherry-pick.
-';
-  return $self;
-}
+has_command 'cherry-pick' => (
+    extra           => 1,
+    section         => 'modification',
+    about           => 'Apply (or reverse) a commit, usually from another branch',
+    git_repo_needed => 1,
+);
 
 sub preprocess {
   my $self = shift;
 
   my ($reverse, $dash_x, $mainline) = (0, 0, -1);
-  Getopt::Long::Configure("permute");  # Allow unrecognized options through
+  Getopt::Long::Configure("permute"); # Allow unrecognized options through
   my $result = main::GetOptions(
     "--help"       => sub { $self->help() },
     "mainline|m=i" => \$mainline,
@@ -979,68 +475,25 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @ARGV = Util::quote_args(@ARGV);
   if ($self->{reverse}) {
-    return ExecUtil::execute("$GIT_CMD revert @ARGV", ignore_ret => 1);
+    return ExecUtil::execute([ $GIT_CMD, 'revert', @ARGV ], ignore_ret => 1);
   } else {
-    return ExecUtil::execute("$GIT_CMD cherry-pick @ARGV", ignore_ret => 1);
+    return ExecUtil::execute([ $GIT_CMD, 'cherry-pick', @ARGV ], ignore_ret => 1);
   }
 }
 
 ###########################################################################
 # clone                                                                   #
 ###########################################################################
-package clone;
-@clone::ISA = qw(subcommand);
-INIT {
-  $COMMAND{clone} = {
+
+package EasyGit::Command::Clone;
+
+use EasyGit::Command::Common;
+
+has_command clone => (
     section => 'creation',
     about => 'Clone a repository into a new directory'
-  };
-}
-
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 0, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg clone [--depth DEPTH] REPOSITORY [DIRECTORY]
-
-Description:
-  Obtains a copy of a remote repository, including all history by default.
-  A --depth option can be passed to only include a specified number of
-  recent commits instead of all history (however, this option exists mostly
-  due to the fact that users of other SCMs fail to understand that all
-  history can be compressed into a size that is often smaller than the
-  working copy).
-
-  See 'eg help topic remote-urls' for a detailed list of the different ways
-  to refer to remote repositories.
-
-Examples:
-  Get a local clone of cairo
-      \$ eg clone git://git.cairographics.org/git/cairo
-
-  Get a clone of a local project in a new directory 'mycopy'
-      \$ eg clone /path/to/existing/repo mycopy
-
-  Get a clone of a project hosted on someone's website, asking for only the
-  most recent 20 commits instead of all history, and storing it in the
-  local directory mydir
-      \$ eg clone --depth 20 http://www.random.machine/path/to/git.repo mydir
-
-Options:
-  --depth DEPTH
-    Only download the DEPTH most recent commits instead of all history
-";
-  $self->{'differences'} = "
-  eg clone and git clone are very similar, but eg clone by default sets up
-  a branch for each remote branch automatically (instead of only creating
-  one branch, typically master).
-";
-  return $self;
-}
+);
 
 sub preprocess {
   my $self = shift;
@@ -1060,7 +513,7 @@ sub preprocess {
     );
   shift @ARGV while ($ARGV[0] =~ /^-/);  # Skip past any other options
   $self->{repository} = shift @ARGV;
-  die "No repository specified!\n" if !$self->{repository};
+  die "No repository specified!\n" unless $self->{repository};
   my $basename = $self->{repository};
   $basename =~ s#/*$##;        # Remove trailing slashes
   $basename =~ s#.*[/:]##;     # Remove everything but final dirname
@@ -1075,13 +528,11 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  #
   # Perform the clone
-  #
-  @ARGV = Util::quote_args(@ARGV);
-  my $ret = ExecUtil::execute("$GIT_CMD clone @ARGV", ignore_ret => 1);
+  my $ret = ExecUtil::execute([ $GIT_CMD, 'clone', @ARGV ], ignore_ret => 1);
   return $ret if $self->{bare};
-  if ($DEBUG == 2) {
+
+  if ($DEBUG > 1) {
     print "    >>Running: 'cd $self->{directory}'<<\n";
     print "    >>Running: '$GIT_CMD branch -r'<<\n";
     print "    --- Setting up extra branches by default ---\n";
@@ -1091,7 +542,7 @@ sub run {
     # Switch to the appropriate directory, remembering the repository we
     # checked out
     die "$self->{directory} does not exist after checkout!"
-      if ! -d $self->{directory};
+      unless -d $self->{directory};
     $self->{repository} = main::abs_path($self->{repository})
       if -d $self->{repository};
     chdir($self->{directory});
@@ -1109,7 +560,7 @@ sub run {
     chomp($autosetuprebase);
     if ($autosetuprebase eq 'always' || $autosetuprebase eq 'remote') {
       foreach my $branch (@local_branches) {
-        ExecUtil::execute("$GIT_CMD config branch.$branch.rebase true");
+        ExecUtil::execute([ $GIT_CMD, 'config', "branch.$branch.rebase", 'true' ]);
       }
     }
 
@@ -1118,152 +569,29 @@ sub run {
       my ($remote, $branch) = ($b =~ m#^(.*)/(.*?)$#);
       next if $branch eq "HEAD";
       next if grep {$branch eq $_} @local_branches;
-      ExecUtil::execute("$GIT_CMD branch $branch $remote/$branch > /dev/null");
+      ExecUtil::execute([ $GIT_CMD, 'branch', $branch, "$remote/$branch", '>' '/dev/null' ]);
     }
   }
 
   return $ret;
 }
 
+1;
+
 ###########################################################################
 # commit                                                                  #
 ###########################################################################
-package commit;
-@commit::ISA = qw(subcommand);
-INIT {
-  $COMMAND{commit} = {
-    section => 'modification',
-    about => 'Record changes locally'
-    };
-  $ALIAS{'checkin'} = "commit";
-  $ALIAS{'ci'}      = "commit";
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg commit [-a|--all-known] [-b|--bypass-unknown-check]
-            [--staged|-d|--dirty] [-F FILE | -m MSG] |--amend] [--]
-            [FILE...]
+package EasyGit::Command::Commit;
 
-Description:
-  Records changes locally along with a log message describing the
-  changes you have made.  If no -F or -m option is supplied, an editor
-  is opened for you to enter a log message.
+use EasyGit::Command::Common;
 
-  In order to prevent common errors, the commit will abort with a warning
-  message if there are no changes to commit, there are conflicts from a
-  merge, or if eg detects that the choice of what to commit is ambiguous.
-  In particular, if you have any \"newly created\" unknown files present,
-  or if you have both staged changes (i.e. changes explicitly marked as
-  ready for commit) and unstaged changes, then you will get a warning
-  rather than having the commit occur.  You can run 'eg status' to get the
-  status of various files and their changes.  These commit checks can be
-  bypassed with various options.
-
-Examples:
-  Record current changes locally, not changing anything in CVS...OR...get
-  a warning message if eg detects that the choice of what to commit is not
-  necessarily clear.
-      \$ eg commit
-
-  Record current changes, ignoring any unknown files present.  Also
-  remember the list of unknown files so that their existence will not
-  trigger future \"You have new unknown files present\" warnings when not
-  using the -b flag.
-      \$ eg commit -b
-
-  Record brand new file and current changes.
-      \$ eg stage file.c
-      \$ eg commit -a
-  Note: Running 'eg stage FILE' explicitly marks FILE as being ready to
-  commit.  Since you likely haven't explicitly marked your other changes as
-  ready to commit, pass the -a flag to specify that both kinds of changes
-  should be recorded.
-
-  (Advanced) Record staged changes, ignoring both unstaged changes and
-  unknown files.
-      \$ eg commit --staged
-
-Options:
-  --all-known, -a
-    (Could also be called --act-like-other-vcses).  Commit both staged
-    (i.e. explictly marked as ready for commit) changes and unstaged
-    changes.
-
-    Incompatible with explicitly specifying files to commit on the command
-    line, and incompatible with the --staged option.
-
-  --bypass-unknown-check, -b
-    Commit local changes, even if there are unknown files around.  If this
-    flag is not used and unknown files are currently present that were not
-    present the last time the -b flag was used, then the commit will be
-    aborted with a warning message.
-
-  --staged, --dirty, -d
-    Commit only staged changes and bypass sanity checks.  (\"dirty\" is kept
-    as a synonym in order to provide a short (-d) form.  The term \"dirty\"
-    is used to convey the fact that the working area will likely not be
-    \"clean\" after a commit since unstaged changes will still be present).
-
-    WARNING: Do not try to use -s as a shorthand for --staged; -s has a
-    different meaning (see 'git commit --help')
-
-    Incompatible with explicitly specifying files to commit on the command
-    line, and incompatible with the --all-known option.
-
-  -F FILE
-    Use the contents of FILE as the commit message
-
-  -m MSG
-    Use MSG as the commit message.
-
-  --amend
-    Amend the last commit on the current branch.
-";
-  $self->{'differences'} = '
-  The "--staged" (and "-d" and "--dirty" aliases) are unique to eg commit;
-  git commit behavior differs from eg commit in that it acts by default
-  like the --staged flag was passed UNLESS either the -a option is passed
-  or files are explicitly listed on the command line.
-
-  The "--bypass-unknown-check" is unique to eg commit; git commit
-  behavior differs by always turning on this functionality -- there is
-  no way to have git commit do an unknown files sanity check for you.
-
-  "-a" is not nearly as useful for eg commit as it is for git commit.  "-a"
-  has the same behavior in both, but the "smart" behavior of eg commit
-  means it is only rarely needed.
-
-  The "--all-known" alias for "-a" is known as "--all" to git-commit; I
-  find the latter confusing and misleading and thus renamed to the former
-  for eg commit.
-
-  To be precise about the behavior of a plain "eg commit":
-     If the working copy is clean                -> warn user: nothing to commit
-     else if there are unmerged files            -> warn user: unmerged files
-     else if there are new untracked files       -> warn user: new unknown files
-     else if both "staged" & unstaged changes[1] -> warn user: mix
-     else                                        -> run "git commit -a"
-  Actually, I do not pass -a if there are only staged changes present, but
-  the result is the same.  Note that this essentially boils down to making
-  the user do less work (no need to remember -a in the common case) and
-  extending the sanity checks git commit does (which currently only covers
-  the clean working copy case) to also prevent a number of other very
-  common user pitfalls.
-
-  [1] The reason for putting "staged" in quotes comes from the case of
-  running "eg commit --amend" when you have local unstaged changes.  Does
-  the user want to merely amend the prior commit message or add their
-  changes to the previous commit?  (Even if the index matches HEAD at this
-  time, we are committing relative to HEAD^1.)  It is not clear what the
-  user wants, so we warn and ask them to use -a or --staged.
-';
-  return $self;
-}
+has_command commit => (
+    section         => 'modification',
+    about           => 'Record changes locally',
+    git_repo_needed => 1,
+    alias           => [ 'checkin', 'ci' ]
+);
 
 sub preprocess {
   my $self = shift;
@@ -1284,8 +612,7 @@ sub preprocess {
     "all-known|a"                 => \$all_known,
     "bypass-unknown-check|b"      => \$bypass_unknown,
     "staged|dirty|d"              => \$staged,
-    "dry-run"                     => sub { $dry_run = 1,
-                                           &$record_arg("--", @_) },
+    "dry-run"                     => sub { $dry_run = 1, &$record_arg("--", @_) },
     "s"                           => sub { &$record_arg("-", @_) },
     "v"                           => sub { &$record_arg("-", @_) },
     "u"                           => sub { &$record_arg("-", @_) },
@@ -1295,25 +622,20 @@ sub preprocess {
     "file=s"                      => sub { &$record_args("--", @_) },
     "m=s"                         => sub { &$record_args("-", @_) },
     "amend"                       => sub { $amend = 1; &$record_arg("--", @_) },
-    "allow-empty"                 => sub { $allow_empty = 1;
-                                           &$record_arg("--", @_) },
-    "interactive"                 => sub { $allow_empty = 1;
-                                           &$record_arg("--", @_) },
+    "allow-empty"                 => sub { $allow_empty = 1; &$record_arg("--", @_) },
+    "interactive"                 => sub { $allow_empty = 1; &$record_arg("--", @_) },
     "no-verify"                   => sub { &$record_arg("--", @_) },
     "e"                           => sub { &$record_arg("-", @_) },
     "author=s"                    => sub { &$record_args("--", @_) },
     "cleanup=s"                   => sub { &$record_args("--", @_) },
-    "include|i=s"                 => sub { $include = 1;
-                                           &$record_args("--", @_) },
+    "include|i=s"                 => sub { $include = 1; &$record_args("--", @_) },
     );
   my ($opts, $revs, $files) = RepoUtil::parse_args([], @ARGV);
 
-  #
   # Set up flags based on options, do sanity checking of options
-  #
   my ($check_no_changes, $check_unknown, $check_mixed, $check_unmerged);
   my $skip_all = $include || $dry_run;
-  $self->{'commit_flags'} = [];
+  $self->{commit_flags} = [];
   die "Cannot specify both --all-known (-a) and --staged (-d)!\n" if
     $all_known && $staged;
   die "Cannot specify --staged when specifying files!\n" if @$files && $staged;
@@ -1321,11 +643,9 @@ sub preprocess {
   $check_unknown   = !$bypass_unknown && !$staged && !@$files && !$skip_all;
   $check_mixed     = !$all_known      && !$staged && !@$files && !$skip_all;
   $check_unmerged  = !$skip_all;
-  push(@{$self->{'commit_flags'}}, "-a") if $all_known;
+  push(@{$self->{commit_flags}}, "-a") if $all_known;
 
-  #
   # Lots of sanity checks
-  #
   my $status =
     RepoUtil::commit_push_checks($package_name,
                                  {no_changes       => $check_no_changes,
@@ -1338,7 +658,7 @@ sub preprocess {
     print STDERR <<EOF;
 Aborting: It is not clear whether you want to simply amend the commit
 message or whether you want to include your local changes in the amended
-commit.  Please pass --staged to just amend the previous commit message, or
+commit. Please pass --staged to just amend the previous commit message, or
 pass -a to include your current local changes with the previous amended
 commit.
 EOF
@@ -1354,10 +674,8 @@ EOF
     push(@{$self->{'commit_flags'}}, "-a");
   }
 
-  #
   # Record the set of unknown files we ignored with -b, so the -b flag isn't
   # needed next time.
-  #
   if ($bypass_unknown) {
     RepoUtil::record_ignored_unknowns();
   }
@@ -1369,188 +687,34 @@ EOF
 ###########################################################################
 # config                                                                  #
 ###########################################################################
-package config;
-@config::ISA = qw(subcommand);
-INIT {
-  $COMMAND{config} = {
+
+package EasyGit::Command::Config;
+
+use EasyGit::Command::Common;
+
+has_command config => (
     unmodified_behavior => 1,
-    extra => 1,
-    section => 'misc',
-    about => 'Get or set configuration options'
-    };
-}
+    extra               => 1,
+    section             => 'misc',
+    about               => 'Get or set configuration options',
+    git_repo_needed     => 0
+);
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 0, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg config OPTION [ VALUE ]
-  eg config --unset OPTION
-  eg config [ --list ]
-
-Description:
-  Gets or sets configuration options.
-
-  See the 'Configuration File' section of 'git help config' for a fairly
-  comprehensive list of special options used by eg (and git).
-
-Examples:
-  Get the value of the configuration option user.email
-      \$ eg config user.email
-
-  Set the value of the configuration option user.email to whizbang\@flashy.org
-      \$ eg config user.email whizbang\@flashy.org
-
-  Unset the values of the configuration options branch.master.remote
-  and branch.master.merge
-      \$ eg config --unset branch.master.remote
-      \$ eg config --unset branch.master.merge
-
-  List all options that have been set
-      \$ eg config --list  
-";
-  return $self;
-}
+1;
 
 ###########################################################################
 # diff                                                                    #
 ###########################################################################
-package diff;
-@diff::ISA = qw(subcommand);
-INIT {
-  $COMMAND{diff} = {
+
+package EasyGit::Command::Diff;
+
+use EasyGit::Command::Common;
+
+has_command diff => (
     section => 'discovery',
-    about => 'Show changes to file contents'
-    };
-}
-
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg diff [--unstaged | --staged] [REVISION] [REVISION] [FILE...]
-
-Description:
-  Shows differences between different versions of the project.  By default,
-  it shows the differences between the last locally recorded version and the
-  version in the working copy.
-
-Examples:
-  Show local unrecorded changes
-      \$ eg diff
-
-  In a project with the current branch being 'master', show the differences
-  between the version before the last recorded commit and the working copy.
-      \$ eg diff master~1
-  Or do the same using \"HEAD\" which is a synonym for the current branch:
-      \$ eg diff HEAD~1
-
-  Show changes to the file myscript.py between 10 versions before last
-  recorded commit and the last recorded commit (assumes the current branch
-  is 'master').
-      \$ eg diff master~10 master myscript.py
-
-  (Advanced) Show changes between staged (ready-to-be-committed) version of
-  files and the working copy (use 'eg stage' to stage files).  In other
-  words, show the unstaged changes.
-      \$ eg diff --unstaged
-
-  (Advanced) Show changes between last recorded copy and the staged (ready-
-  to-be-committed) version of files (use 'eg stage' to stage files).  In
-  other words, show the staged changes.
-      \$ eg diff --staged
-
-  (Advanced) Show changes between 5 versions before the last recorded
-  commit and the currently staged (ready-to-be-committed) version of the
-  repository.  (Use 'eg stage' to stage files).
-      \$ eg diff --staged HEAD~5
-
-Options:
-  REVISION
-    A reference to a recorded version of the repository, defaulting to HEAD
-    (meaning the most recent commit on the current branch).  See 'eg help
-    topic revisions' for more details.
-
-  --staged
-    Show changes between the last commit and the staged copy of files.
-    Cannot be used when two revisions have been specified.
-
-  --unstaged
-    Show changes between the staged copy of files and the current working
-    directory.  Cannot be used when a revision is specified.
-";
-  $self->{'differences'} = '
-  Changes to eg diff relative to git diff are:
-    (1) Different defaults for what to diff relative to
-    (2) Providing a more consistent double-dot operator
-
-  Section 1: Different defaults for what to diff relative to
-
-  The following illustrate the two changed defaults of eg diff:
-    eg diff            <=> git diff HEAD
-    eg diff --unstaged <=> git diff
-  (Which is not 100% accurate due to merges; see below.)  In more detail:
-
-  The "--unstaged" option is unique to eg diff; to get the same behavior
-  with git diff you simply list no revisions and omit the "--cached" flag.
-
-  When neither --staged nor --unstaged are specified to eg diff and no
-  revisions are given, eg diff will pass along the revision "HEAD" to git
-  diff.
-
-  The "--staged" option is an alias for "--cached" unique to eg diff; the
-  purpose of the alias is to reduce the number of different names in git
-  used to refer to the same concept.  (Update: the --staged flag is now
-  part of git with the same meaning as in eg.)
-
-  Merges: The above is slightly modified if the user has an incomplete
-  merge; if the user has conflicts during a merge (or uses --no-commit when
-  calling merge) and then tries "eg diff", it will abort with a message
-  telling the user that there is no "last" commit and will provide
-  alternative suggestions.
-
-  Section 2: Providing a more consistent double-dot operator
-
-    The .. operator of git diff (e.g. git diff master..devel) means what
-    the ... operator of git log means, and vice-versa.  This causes lots of
-    confusion.  We fix this by making the .. operator of eg diff
-    do exactly what the ... operator of git diff does.  To see why:
-    
-    Meanings of git commands, as a reminder (A and B are revisions):
-      git diff A..B  <=> git diff A B                      # Endpoint difference
-      git diff A...B <=> git diff $(git merge-base A B) B  # Changes from base
-    
-    Why this is confusing (compare to above):
-      git log A..B  <=> git log ^$(git merge-base A B) B   # Changes from base
-      git log A...B <=> git log A B ^$(git merge-base A B) # Endpoint difference
-    
-    So, my translation:
-      eg diff A B   <=>  git diff A B    <=> git diff A..B
-      eg diff A..B  <=>  git diff A...B
-      eg diff A...B <=>  git diff A...B
-
-    Reasons for this change:
-      * New users automatically get sane behavior, and use either eg diff A B
-        or eg diff A..B, each doing what one would expect.  They do not ever
-        realize that A...B is a bit weird because they have no need to try to
-        use it; eg diff A B covers their needs.
-      * Users worried about switching between eg and git without having to
-        modify their command lines can always use either diff A B or
-        diff A...B, but never any other form; using this subset ensures that
-        both eg and git behave identically.
-      * Users only access git diff A..B behavior through eg diff A B, which
-        is less typing and makes more sense.
-      * Since git diff A..B and git diff A B are the same, the latter is far
-        more common, and the former is confusing, odds are that if any git
-        user suggests someone use git diff A..B they probably really meant
-        git diff A...B
-';
-  return $self;
-}
+    about => 'Show changes to file contents',
+    git_repo_needed => 1
+);
 
 sub preprocess {
   my $self = shift;
@@ -1631,174 +795,73 @@ EOF
   @ARGV = @args;
 }
 
+1;
+
 ###########################################################################
 # difftool                                                                #
 ###########################################################################
+
 package difftool;
-@difftool::ISA = qw(diff);
-INIT {
-  $COMMAND{difftool} = {
-    new_command => 1,
-    extra => 1,
-    section => 'discovery',
-    about => 'Show changes to file contents using an external tool'
-    };
-}
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
+use EasyGit::Command::DiffTool;
 
-  $self->{'help'} = "
-Usage:
-  eg difftool [--tool=<tool>] [--unstaged | --staged] [REVISION] [REVISION] [FILE...]
+has_command difftool => (
+    new_command     => 1,
+    extra           => 1,
+    section         => 'discovery',
+    about           => 'Show changes to file contents using an external tool',
+    git_repo_needed => 1
+);
 
-Description:
-  Shows differences between different versions of the project using an
-  external tool.  By default, it shows the differences between the last
-  locally recorded version and the version in the working copy.
-
-  This command behaves just like 'eg diff'; see 'eg help diff' for more
-  details.
-
-  You can configure the default external tool with 'eg config'.  You can
-  specify the default tool by setting 'diff.tool'; you can configure the
-  tool by setting 'difftool.<tool>.cmd'.  See the 'Configuration File'
-  section of 'git help config' for more details.
-
-Example:
-  Show local unrecorded changes in vimdiff
-      \$ eg difftool --tool=vimdiff
-
-  See 'eg help diff' for more diff examples.
-
-";
-  $self->{'differences'} = "
-  git difftool behaves just like git diff, but launches an external tool
-  instead of using git's built-in machinery.  eg diff is quite different from
-  git diff (see 'eg help diff' for details); eg difftool behaves just like
-  eg diff.
-";
-  return $self;
-}
-
-
+1;
 
 ###########################################################################
 # gc                                                                      #
 ###########################################################################
-package gc;
-@gc::ISA = qw(subcommand);
-INIT {
-  $COMMAND{gc} = {
+
+package EasyGit::Command::GC;
+
+use EasyGit::Command::Common;
+
+has_command gc => (
     unmodified_behavior => 1,
-    extra => 1,
-    section => 'timesavers',
-    about => 'Optimize the local repository to make later operations faster',
-    };
-}
+    extra               => 1,
+    section             => 'timesavers',
+    about               => 'Optimize the local repository to make later operations faster',
+    git_repo_needed     => 1
+);
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(git_repo_needed => 1, @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg gc
-
-Description:
-  Optimizes the local repository; in particular, this command compresses
-  file revisions to reduce disk space and increase performance.
-
-  This command is occasionally called during normal git usage, making
-  explicit usage of this command unnecessary for many users.  However, the
-  automatic calls of this command only do simple and quick optimizations,
-  so some users (particularly those with many revisions) may benefit from
-  manually invoking this command periodically (such as from nightly or
-  weekly cron scripts).
-";
-  return $self;
-}
+1;
 
 ###########################################################################
 # help                                                                    #
 ###########################################################################
-package help;
-@help::ISA = qw(subcommand);
-INIT {
-  $COMMAND{help} = {
-    section => 'misc',
-    about => 'Get command syntax and examples'
-    };
-}
+package EasyGit::Command::Help;
 
-sub new {
-  my $class = shift;
-  my $self = $class->SUPER::new(exit_status => 0,
-                                git_equivalent => '',
-                                git_repo_needed => 0,
-                                @_);
-  bless($self, $class);
-  $self->{'help'} = "
-Usage:
-  eg help --all
-  eg help [COMMAND]
-  eg help topic [TOPIC]
+use EasyGit::Command::Common;
 
-Description:
-  Shows general help for eg, for one of its subcommands, or for a
-  specialized topic.
+has_command help => (
+    section         => 'misc',
+    about           => 'Get command syntax and examples',
+    exit_status     => 0,
+    git_equivalent  => '',
+    git_repo_needed => 0,
 
-Examples:
-  Show help for eg
-      \$ eg help
-
-  Show help for extended list of commands available in eg
-      \$ eg help --all
-
-  Show help for the switch command of eg
-      \$ eg help switch
-
-  Show which topics have available help
-      \$ eg help topic
-
-  Show the help for the staging topic
-      \$ eg help topic staging
-";
-  $self->{'differences'} = "
-  eg help uses its own help system, ignoring the one from git help...except
-  that eg help will call git help if asked for help on a subcommand it does
-  not recognize.
-
-  'git help COMMAND', by default, simply calls 'man git-COMMAND'.  The git
-  man pages are really nice for people who are experts with git; they are
-  comprehensive and detailed.  However, new users tend to get lost in a sea
-  of details and advanced topics (among other problems).  'eg help COMMAND'
-  provides much simpler pages of its own and refers to the manpages for
-  more details.  The eg help pages also list any differences between the eg
-  commands and the git ones, to assist interested users in learning git.
-
-  If you simply want a brief list of available options and descriptions,
-  you may also want to try running 'git COMMAND -h' (which differs from
-  the two identical commands 'git COMMAND --help' and 'git help COMMAND').
-";
-
-  return $self;
-}
+);
 
 sub preprocess {
-  my $self = shift;
+    my $self = shift;
 
-  $self->{all} = 0;
-  my $result=main::GetOptions("--help" => sub { $self->help() },
-                              "--all"  => \$self->{all});
+    $self->{all} = 0;
+
+    my $result = main::GetOptions("--help" => sub { $self->help() },
+        "--all" => \$self->{all});
 }
 
 sub run {
   my $self = shift;
 
-  if ($DEBUG == 2) {
+  if ($DEBUG > 1) {
     print "    >>(No commands to run, just data to print)<<\n";
     return;
   }
@@ -1814,7 +877,7 @@ sub run {
     die "Oops, there's a bug.\n" if $self->{exit_status} != 0;
     $subcommand = "help::topic" if $subcommand eq 'topic';
 
-    if (!$subcommand->can("new")) {
+    unless ($subcommand->can('new')) {
       print "$orig_subcommand is not modified by eg (eg $orig_subcommand is" .
             " equivalent to git $orig_subcommand).\nWill try running 'git" .
             " help $orig_subcommand' in 2 seconds...\n";
@@ -1886,6 +949,8 @@ sub run {
   
   exit $self->{exit_status};
 }
+
+1;
 
 ###########################################################################
 # help::topic                                                             #
@@ -2015,7 +1080,7 @@ sub _conflict_resolution_message (%) {
               @_};  # Hashref initialized as we're told
   my $result = "
 When conflicting changes are detected, a $opts->{op} operation will stop to
-allow a user to resolve the conflicts.  At this stage there is one of four
+allow a user to resolve the conflicts. At this stage there is one of four
 things a user may want to do:
   1) Find out more about what conflicts occurred
   2) Resolve the conflicts
@@ -7412,7 +6477,7 @@ EOF
   elsif ($check_for->{changes} &&
          ($status->{has_unstaged_changes} || $status->{has_staged_changes})) {
     print STDERR <<EOF;
-Aborting: You have modified your files since the last commit.  You should
+Aborting: You have modified your files since the last commit. You should
 first commit any such changes before trying to $clean_check_type your work
 elsewhere, or use the -b flag to bypass this check.
 EOF
@@ -7445,9 +6510,7 @@ sub commit_push_checks (;$$) {
     Util::push_debug(new_value => 0);
   }
 
-  #
   # Determine which types of changes are present
-  #
   my ($ret, $output) = ExecUtil::execute_captured("$EG_EXEC status",
                                                   ignore_ret => 1);
   my @unmerged_files = `$GIT_CMD ls-files --unmerged`;
@@ -7460,9 +6523,7 @@ sub commit_push_checks (;$$) {
                                    !$status{has_unmerged_changes};
   $status{output} = $output;
 
-  #
   # Determine which unknown files are "newly created"
-  #
   my @new_unknown = `(cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory)`;
   chomp(@new_unknown);
   if ($check_for->{unknown} && $status{has_new_unknown_files} &&
@@ -7639,9 +6700,9 @@ sub get_revert_info ($@) {
   };
 
   # Now, get the files added to the index since the "last commit"
-  @newly_added_files = &$get_newish_files("HEAD");
+  @newly_added_files = $get_newish_files->('HEAD');
   for my $branch (@merge_branches) {
-    my @files = &$get_newish_files($branch);
+    my @files = $get_newish_files->($branch);
     @newly_added_files = Util::intersect(\@newly_added_files, \@files);
   }
   if (@newly_added_files) {
@@ -7656,7 +6717,7 @@ sub get_revert_info ($@) {
     push(@branches, "HEAD");
     push(@branches, @merge_branches);
     foreach my $branch (@branches) {
-      my @files = &$get_newish_files($revision, $branch);
+      my @files = $get_newish_files->($revision, $branch);
       @new_since_rev_files = Util::union(\@new_since_rev_files, \@files);
     }
     if (@new_since_rev_files) {

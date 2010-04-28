@@ -1,0 +1,42 @@
+=pod
+
+=head1 NAME
+
+remote-urls - Format for referring to remote (and not-so-remote) repositories
+
+=head1 DESCRIPTION
+
+Any of the following notations can be used to name a remote repository:
+
+  rsync://host.xz/path/to/repo.git/
+  http://host.xz/path/to/repo.git/
+  https://host.xz/path/to/repo.git/
+  git://host.xz/path/to/repo.git/
+  git://host.xz/~user/path/to/repo.git/
+  ssh://[user@]host.xz[:port]/path/to/repo.git/
+  ssh://[user@]host.xz/path/to/repo.git/
+  ssh://[user@]host.xz/~user/path/to/repo.git/
+  ssh://[user@]host.xz/~/path/to/repo.git
+
+You can also use any of the following, which are identical to the last
+three above, respectively
+
+  [user@]host.xz:/path/to/repo.git/
+  [user@]host.xz:~user/path/to/repo.git/
+  [user@]host.xz:path/to/repo.git
+
+Finally, you can also use the following notation to name a not-so-remote
+repository:
+
+  /path/to/repo.git/
+  file:///path/to/repo.git/
+
+These last two are identical other than that the latter disables some local
+optimizations (such as hardlinking copies of history when cloning, in order
+to save disk space).
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

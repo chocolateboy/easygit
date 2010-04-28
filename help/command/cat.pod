@@ -1,0 +1,55 @@
+=pod
+
+=head1 NAME
+
+cat: [[about]]
+
+=head1 USAGE
+
+  eg cat [REVISION:]FILE...
+
+=head1 Description
+
+Output the specified file(s) as of the given revisions.
+
+Note that this basically is just a compatibility alias provided for users
+of other SCMs.  You should consider using 'git show' instead, though with
+core git whenever you specify a REVISION, you will need to specify the
+path to FILE relative to the toplevel project directory, instead of a
+path for FILE relative to the current directory.
+
+=head1 EXAMPLES
+
+Output the most recently committed version of foo.c
+
+    $ eg cat foo.c
+
+Output the version of bar.h from the 5th to last commit on the
+ugly_fixes branch
+
+    $ eg cat ugly_fixes~5:bar.h
+
+Concatenate the version of hello.c from two commits ago and the
+version of world.h from the branch timbuktu, and output the result:
+
+    $ eg cat HEAD~1:hello.c timbuktu:world.h
+
+=head1 Differences from C<git cat>
+
+The output of "git show FILE" is probably confusing to users at first,
+as is the need to specify files relative to the top of the git project
+rather than relative to the current directory.  Thus, "eg cat FILE"
+calls "git show HEAD:PATH/TO/FILE".
+
+=head1 SEE ALSO
+
+Run C<git help show> for a comprehensive list of options available.
+C<eg cat> is designed to accept the same options as C<git show>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

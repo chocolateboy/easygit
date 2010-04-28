@@ -1,0 +1,102 @@
+=pod
+
+=head1 NAME
+
+cherry-pick - [[about]]
+
+=head1 USAGE
+
+eg cherry-pick [--reverse] [--edit] [-n] [-m parent-number] [-s] [-x] REVISION
+
+=head1 DESCRIPTION
+
+Given an existing revision, apply the change between its parent and it
+(or reverse apply if the C<--reverse> option is present), and record a new
+revision with this change.  Your working tree must be clean (no local
+unsaved modifications) in order to run C<eg cherry-pick>.
+
+=head1 EXAMPLES
+
+Apply the fix 3 commits behind the tip of the experimental branch
+(i.e. the fix made in experimental~3) to the current branch
+
+    $ eg cherry-pick experimental~3
+
+Make a new commit that reverses the changes made in the most recent
+commit of the current branch
+
+      $ eg cherry-pick -R HEAD
+
+=head1 OPTIONS
+
+=head2 --reverse, --revert, -R
+
+Reverse apply the changes from the specified commit (i.e. revert the
+specified revision with a new commit).
+
+=head2 --edit, -e
+
+With this option, C<eg cherry-pick> will let you edit the commit message
+prior to committing.
+
+=head2 -x
+
+When recording the commit, append to the original commit message a note
+that indicates which commit this change was cherry-picked from. Append
+the note only for cherry picks without conflicts. Do not use this
+option if you are cherry-picking from your private branch because the
+information is useless to the recipient. If on the other hand you are
+cherry-picking between two publicly visible branches (e.g. backporting
+a fix to a maintenance branch for an older release from a development
+branch), adding this information can be useful.
+
+This option is turned on automatically when C<-R> is specified.
+
+=head2 --mainline parent-number, -m parent-number
+
+cherry-pick always applies the changes between a revision and its
+parent; thus if a revision represents a merge commit, it is not clear
+which parent cherry-pick should get the changes relative to. This
+option specifies the parent number (starting from 1) of the mainline
+and allows C<cherry-pick> to replay the change relative to the specified
+parent.
+
+=head2 --no-commit, -n
+
+Usually cherry-pick automatically creates a commit. This flag applies
+the change necessary to cherry-pick the named revision to your working
+tree and staging area, but does not make the commit. In addition, when
+this option is used, the staging area can contain unsaved changes and
+the cherry-pick will be done against the beginning state of your
+staging area.
+
+This is useful when cherry-picking more than one commit into a single
+combined change.
+
+=head2 --signoff, -s
+
+Add Signed-off-by line at the end of the commit message.
+
+=head2 REVISION
+
+A reference to a recorded version of the repository.  See C<eg help topic revisions>
+for more details.
+
+=head1 Differences from git cherry-pick
+
+C<eg cherry-pick> contains both the functionality of C<git cherry-pick> and
+C<git revert>. If the C<-R> option is specified, C<eg cherry-pick> calls C<git revert>
+(after removing the C<-R> option); otherwise it calls C<git cherry-pick>.
+
+=head1 SEE ALSO
+
+Run C<git help cherry-pick> for a comprehensive list of options available.
+C<eg cherry-pick> is designed to accept the same options as C<git cherry-pick>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

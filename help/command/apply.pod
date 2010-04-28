@@ -1,0 +1,59 @@
+=pod
+
+=head1 Name
+
+apply: [[about]]
+
+=head1 Usage
+
+  eg apply [--staged] [-R | --reverse] [-pNUM]
+
+=head1 Description
+
+Applies a patch to a git repository.
+
+=head1 Examples
+
+Reverse changes in foo.patch
+
+    $ eg apply -R foo.patch
+
+(Advanced) Reverse changes since the last commit to the version of foo.c
+in the staging area (equivalent to 'eg revert --staged foo.c'):
+
+    $ eg diff --staged foo.c | eg apply -R --staged
+
+=head1 Options
+
+=head2 --staged
+
+Apply the patch to the staged (explicitly marked as ready to be committed)
+versions of files
+
+=head2 --reverse, -R
+
+Apply the patch in reverse.
+
+=head2 -pNUM
+
+Remove NUM leading paths from filenames.  For example, with the filename C</home/user/bla/foo.c>,
+using C<-p0> would leave the name unmodified; using C<-p1> would yield C<home/user/bla/foo.c>,
+and using C<-p3> would yield C<bla/foo.c>
+
+=head1 Differences from C<git apply>
+
+eg apply is identical to git apply except that it accepts C<--staged> as a
+synonym for C<--cached>.
+
+=head1 See also
+
+Run C<git help apply> for a comprehensive list of options available.
+C<eg apply> is designed to accept the same options as C<git apply>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

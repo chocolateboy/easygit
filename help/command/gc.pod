@@ -1,0 +1,38 @@
+=pod
+
+=head1 NAME
+
+gc - [[about]]
+
+=head1 USAGE
+
+    eg gc
+
+=head1 DESCRIPTION
+
+Optimizes the local repository; in particular, this command compresses
+file revisions to reduce disk space and increase performance.
+
+This command is occasionally called during normal C<git> usage, making
+explicit usage of this command unnecessary for many users. However, the
+automatic calls of this command only do simple and quick optimizations,
+so some users (particularly those with many revisions) may benefit from
+manually invoking this command periodically (such as from nightly or
+weekly cron scripts).
+
+=head1 Differences from C<git gc>
+
+None.
+
+=head1 SEE ALSO
+
+Run C<git help gc> for a comprehensive list of options available.
+C<eg gc> is designed to accept the same options as C<git gc>, and
+with the same meanings unless specified otherwise in the above
+L</"Differences"> section.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut

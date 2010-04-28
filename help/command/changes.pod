@@ -1,0 +1,26 @@
+=pod
+
+=head1 NAME
+
+Changes - [[about]]
+
+=head1 USAGE
+
+  eg changes [--details]
+
+=head1 OPTIONS
+
+=head2 --details
+
+In addition to the summary of which commands were changed, list the
+changes to each command.
+
+=head2 DIFFERENCES
+
+C<eg changes> is unique to C<eg>; C<git> does not have a similar command.
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut
