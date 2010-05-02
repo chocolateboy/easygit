@@ -1,0 +1,20 @@
+move informational commands to eg info/show e.g.
+
+    eg show --branch
+    eg show --branches
+
+or:
+
+    eg show branch
+    eg show branches
+
+---
+
+make eg log -v work e.g. equivalent to git log --stat
+
+---
+
+Faff-free tests that
+
+    a) confirm correct eg -> git translation
+    b) fail if git changes its UI/behaviour in an incompatible way
