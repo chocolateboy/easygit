@@ -1,0 +1,81 @@
+=pod
+
+=head1 NAME
+
+staging - Marking a subset of the local changes ready for committing
+
+=head1 DESCRIPTION
+
+Marking changes from certain files as ready for commit allows you to split
+your changes into two distinct sets (those that are ready for commit, and
+those that aren't). This includes support for limiting diffs to changes in
+one of these two sets, and for committing just the changes that are ready.
+It's a simple feature that comes in surprisingly handy:
+
+=over
+
+=item *
+When doing conflict resolution from large merges, hunks of changes can
+be categorized into known-to-be-good and still-needs-more-fixing
+subsets.
+
+=item *
+
+When reviewing a largish patch from someone else, hunks of changes can
+be categorized into known-to-be-good and still-needs-review subsets.
+
+=item *
+
+By staging your changes, you can go ahead and add temporary debugging
+code and have less fear of forgetting to remove it before committing --
+you will be warned about having both staged and unstaged changes at
+commit time, and you will have an easy way to locate the temporary
+code.
+
+=item *
+
+It makes it easier to keep "dirty" changes in your working copy for a
+long time without committing them.
+
+=back
+
+=head2 Staging changes and working with staged changes
+
+=head3 Mark all changes in foo.py and baz.c as ready to be committed
+
+    eg stage foo.py baz.c
+
+=head3 Selectively stage part of the changes
+
+    eg stage -p
+
+(You will be asked whether to stage each change, listed in diff format;
+the main options to know are "y" for yes, "n" for no, and "s" for
+splitting the selected change into smaller changes; see C<git help add> for
+more details).
+
+=head3 Get all unstaged changes to bar.C and foo.pl
+
+    eg diff --unstaged foo.pl bar.C
+
+=head3 Get all staged changes
+
+    eg diff --staged
+
+=head3 Get all changes
+
+    eg diff
+
+=head3 Revert the staged changes to bar.C, foo.pl and foo.py
+
+    eg unstage bar.C foo.pl foo.py
+
+=head3  Commit just the staged changes
+
+    eg commit --staged
+
+=head1 AUTHOR
+
+Elijah Newren
+
+=cut
