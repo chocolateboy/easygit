@@ -35,7 +35,7 @@ cat >expect <<\EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -58,7 +58,7 @@ cat >expect <<\EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -122,7 +122,7 @@ cat >expect <<EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 EOF
 test_expect_success 'status -uno' '
@@ -143,7 +143,7 @@ cat >expect <<EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 EOF
 git config advice.statusHints false
@@ -173,7 +173,7 @@ cat >expect <<EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -223,7 +223,7 @@ cat >expect <<EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -275,7 +275,7 @@ cat >expect <<\EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   ../dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   modified
 Newly created unknown files:
 	untracked
@@ -339,7 +339,7 @@ cat >expect <<\EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	<GREEN>new file:   dir2/added<RESET>
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	<RED>modified:   dir1/modified<RESET>
 Newly created unknown files:
 	<BLUE>dir1/untracked<RESET>
@@ -460,7 +460,7 @@ cat >expect <<\EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -544,7 +544,7 @@ cat >expect <<EOF
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
 	new file:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -595,7 +595,7 @@ cat >expect <<EOF
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
 	new file:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Submodule changes to be committed:
 * sm 0000000...$head (1):
@@ -653,7 +653,7 @@ no changes added to commit (use "git add" and/or "git commit -a")
 EOF
 cat >expect2 <<EOF
 (On branch master)
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	dir1/untracked
@@ -747,7 +747,7 @@ cat > expect << EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	modified:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Submodule changes to be committed:
 * sm 4c2ba33...2fb508f (1):
@@ -849,7 +849,7 @@ cat > expect << EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	modified:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 	modified:   sm (modified content)
 Submodule changes to be committed:
@@ -896,7 +896,7 @@ cat > expect << EOF
 (On branch master)
 Changes ready to be committed ("staged"):
 	modified:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 	modified:   sm (new commits)
 Submodule changes to be committed:
@@ -965,7 +965,7 @@ test_expect_success ".git/config ignore=dirty doesn't suppress submodule summary
 
 cat > expect << EOF
 (On branch master)
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Newly created unknown files:
 	.gitmodules

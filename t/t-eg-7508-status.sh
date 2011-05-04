@@ -45,7 +45,7 @@ cat >expect <<EOF
 Changes ready to be committed ("staged"):
 	new file:   dir2/added
 	new file:   sm
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	modified:   dir1/modified
 Submodule changes to be committed:
 * sm 0000000...$head (1):
@@ -73,7 +73,7 @@ Changes ready to be committed ("staged"):
 Unmerged paths (files with conflicts):
 	[31mboth modified:      file[m
 	[31mdeleted by us:      file2[m
-Changed but not updated ("unstaged"):
+Changes not staged for commit ("unstaged"):
 	[31mmodified:   dir1/modified[m
 Submodule changes to be committed:
 * sm 0000000...$head (1):
