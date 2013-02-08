@@ -3291,8 +3291,12 @@ sub run {
   $names{$revision} = [$branch, 0];
 
   # Loop over the output of git log, printing/modifying as we go
-  my $use_colors = -t STDOUT ? "GIT_PAGER_IN_USE=1" : "";
-  open(INPUT, "$use_colors $GIT_CMD log @ARGV | ");
+  my $old_git_pager_in_use = $ENV{"GIT_PAGER_IN_USE"};
+  if (-t STDOUT) {
+    # use colors
+    $ENV{"GIT_PAGER_IN_USE"} = "1";
+  }
+  open(INPUT, "$GIT_CMD log @ARGV | ");
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
   my $less = ($USE_PAGER == 1) ? "less" :
              ($USE_PAGER == 0) ? "cat" :
@@ -3321,6 +3325,7 @@ sub run {
   my ($ret1, $ret2, $ret3);
   close(INPUT);  $ret1 = $? >> 8;
   close(OUTPUT); $ret2 = $? >> 8;
+  $ENV{"GIT_PAGER_IN_USE"} = $old_git_pager_in_use;
 
   # Make sure we close the pipe from rev-list too; We use "$? && $!"
   # instead of "$?" because we don't care about the return value of the
@@ -5394,18 +5399,19 @@ sub run {
         }
 
         if (@other_files || !$paths_specified) {
-          my ($tmp_index) = Util::quote_args("$git_dir/tmp_index");
-          my $git_index = "GIT_INDEX_FILE=$tmp_index ";
-
           my $cf = "@other_files";
           if (!$paths_specified) {
             my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
             ($cf) = Util::reroot_paths__from_to_files($top_dir, $cur_dir, '.');
           }
-          $ret = ExecUtil::execute("$git_index $GIT_CMD checkout $revision " .
+          my $old_git_index_file = $ENV{"GIT_INDEX_FILE"};
+          $ENV{"GIT_INDEX_FILE"} = "$git_dir/tmp_index";
+          $ret = ExecUtil::execute("$GIT_CMD checkout $revision " .
                                    "-- $cf", ignore_ret => 1);
+          $ENV{"GIT_INDEX_FILE"} = $old_git_index_file;
           exit $ret if $ret;
 
+          my ($tmp_index) = Util::quote_args("$git_dir/tmp_index");
           $ret = ExecUtil::execute("rm $tmp_index");
           exit $ret if $ret;
         }
