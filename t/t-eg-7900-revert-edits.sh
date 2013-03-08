@@ -203,10 +203,10 @@ test_expect_success 'undoing merge' '
 	git add e &&
 	$revert --since other &&
 	git diff --quiet other &&
-	test "e" == `git ls-files --others`
+	test "e" = `git ls-files --others`
 	$revert --since HEAD &&
 	git diff --quiet HEAD &&
-	test "cde" == `git ls-files --others | tr -d "\n"`
+	test "cde" = `git ls-files --others | tr -d "\n"`
 '
 
 test_expect_success 'undoing changes to some files in previous revision' '

@@ -3587,7 +3587,7 @@ sub run {
     $ret = ExecUtil::execute("
       ssh $port -q $user$machine \"
         test -d $path && echo '$path already exists!' && exit 1; $check_group
-        if (! type -p git>/dev/null);then echo 'Cannot find git'; exit 1; fi;
+        if (! which git>/dev/null);then echo 'Cannot find git'; exit 1; fi;
         ${sg}mkdir -p $path${sge} &&
         cd $path &&
         ${sg}git init ${shared}--bare${sge} &&
@@ -3599,7 +3599,7 @@ sub run {
     print "Setting up not-so-remote repository...\n";
     $ret = ExecUtil::execute("
         test -d $path && echo '$path already exists!' && exit 1; $check_group
-        if (! type -p git>/dev/null);then echo 'Cannot find git'; exit 1; fi;
+        if (! which git>/dev/null);then echo 'Cannot find git'; exit 1; fi;
         ${sg}mkdir -p $path${sge} &&
         cd $path &&
         ${sg}$git_cmd init ${shared}--bare${sge} &&

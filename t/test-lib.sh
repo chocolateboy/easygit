@@ -18,10 +18,10 @@
 
 # SPECIAL FOR EG: Do not require a build of git in the current project, and
 # make 'git' symlink to eg -- but only if we're not being called recursively.
-if ! type -p git | grep -q gitpath; then
+if ! which git | grep -q gitpath; then
 	if test ! -d "gitpath"; then
 		mkdir gitpath
-		ln -s $(type -p eg) gitpath/git
+		ln -s $(which eg) gitpath/git
 	fi
 	if [ -d $(dirname $(which git))/templates ]; then
 		GIT_EXEC_PATH=$(dirname $(which git))

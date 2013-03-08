@@ -106,7 +106,9 @@ do
 	actual="$pfx-diff.$test"
 
 	cleanup="cat"
-	test "log "="${cmd:0:4}" && [[ ! $cmd =~ decorate ]] && cleanup="log_cleanup"
+	first_4_chars="$(echo \"$cmd\" | awk '{ print substr($0, 2, 4); }')"
+	first_14_chars="$(echo \"$cmd\" | awk '{ print substr($0, 2, 14); }')"
+	[ "log " = "$first_4_chars" ] && [ "log --decorate" != "$first_14_chars" ] && cleanup="log_cleanup"
 
 	test_expect_success "git $cmd" '
 		{

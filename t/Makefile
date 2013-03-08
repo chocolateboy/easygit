@@ -29,6 +29,7 @@ pre-clean:
 
 clean:
 	$(RM) -r 'trash directory'.* test-results
+	$(RM) -r gitpath
 	$(RM) -r valgrind/bin
 	$(RM) .prove
 

@@ -22,7 +22,7 @@ test_expect_success 'setup' '
 
 test_expect_success 'status clean' '
 	git status >output &&
-	test "1" == $(git status | wc -l)
+	test "1" = $(git status | wc -l)
 '
 
 test_expect_success 'commit --dry-run -a clean' '
@@ -178,7 +178,7 @@ test_expect_success 'rm submodule contents' '
 '
 
 test_expect_success 'status clean (empty submodule dir)' '
-	test "1" == $(git status | wc -l)
+	test "1" = $(git status | wc -l)
 '
 
 test_expect_success 'status -a clean (empty submodule dir)' '
