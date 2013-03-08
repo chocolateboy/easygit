@@ -725,7 +725,7 @@ test_create_repo () {
 	mkdir -p "$repo"
 	(
 		cd "$repo" || error "Cannot setup test environment"
-		git init --template="$GIT_TEMPLATE_DIR" >&3 2>&4 ||
+		git init ${GIT_TEMPLATE_DIR:+--template="$GIT_TEMPLATE_DIR"} >&3 2>&4 ||
 		error "cannot run git init -- have you built things yet?"
 		mv .git/hooks .git/hooks-disabled
 	) || exit
