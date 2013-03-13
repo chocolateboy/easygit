@@ -2,7 +2,7 @@
 
 ## Easy GIT (eg), a frontend for git designed for former cvs and svn users
 ## Version 1.7.3.dev
-## Copyright 2008, 2009 by Elijah Newren, and others
+## Copyright 2008, 2009, 2010 by Elijah Newren, and others
 ## Licensed under GNU GPL, version 2.
 
 ## To use eg, simply stick this file in your path.  Then fire off an
@@ -11,26 +11,28 @@
 ## to get a comparison to svn in terms of capabilities and commands.
 ## Webpage for eg: http://www.gnome.org/~newren/eg
 
+use strict;
+use warnings;
+
 package main;
 
-use warnings;
 use Getopt::Long;
 use Cwd qw(getcwd abs_path);
 use List::Util qw(max);
 use File::Temp qw/ tempfile /;
 
 # configurables
-my $debug=0;
+my $DEBUG = $ENV{EASYGIT_DEBUG} || 0;
+my $GIT_CMD = $ENV{EASYGIT_GIT_CMD} || "git";  # Includes any global args, thus "git --exec-path=..."
+my $USE_PAGER = exists($ENV{EASYGIT_USE_PAGER}) ? $ENV{EASYGIT_USE_PAGER} : -1;
 
 # globals :-(
-my $outfh;
-my $version = "1.7.3.dev";
-my $eg_exec = abs_path($0);
-my $git_cmd = "git";  # Includes any global args, thus "git --exec-path=..."
-my $use_pager = -1;
-my %alias;
-my %command;    # command=>{section, short_description} mapping
-my $section = {
+my $OUTFH;
+my $VERSION = "1.7.3.dev";
+my $EG_EXEC = abs_path($0);
+my %ALIAS;
+my %COMMAND;    # command=>{section, short_description} mapping
+my $SECTION = {
   'creation' =>
     { order => 1,
       desc  => 'Creating repositories',
@@ -67,12 +69,12 @@ my $section = {
       desc  => 'Miscellaneous'
     },
   };
-my ($curdir, $topdir, $gitdir);
+my ($CURDIR, $TOPDIR, $GITDIR);
 
 ## Commands to list in help even though we haven't overridden the git versions
 ## (yet, in most cases)
 INIT {
-  %command = (
+  %COMMAND = (
     blame => {
       unmodified_help => 1,
       unmodified_behavior => 1,
@@ -145,7 +147,7 @@ sub new {
 
       # 2) Does 'git' even work (possible bad installation)?
       my ($ret, $output) =
-        ExecUtil::execute_captured("$git_cmd --version", ignore_ret => 1);
+        ExecUtil::execute_captured("$GIT_CMD --version", ignore_ret => 1);
       if ($ret != 0 || $output !~ /^git version .*$/) {
 	  die "Error: Cannot execute git (check your git installation)!\n";
       }
@@ -174,16 +176,16 @@ sub help {
   $git_equiv =~ s/_/-/;  # Packages use underscores, commands use dashes
 
   if ($package_name eq "subcommand") {
-    exit ExecUtil::execute("$git_cmd $self->{command} --help")
+    exit ExecUtil::execute("$GIT_CMD $self->{command} --help")
   }
 
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($use_pager == 1) ? "less" :
-             ($use_pager == 0) ? "cat" :
-             `$git_cmd config core.pager` || "less";
+  my $less = ($USE_PAGER == 1) ? "less" :
+             ($USE_PAGER == 0) ? "cat" :
+             `$GIT_CMD config core.pager` || "less";
   chomp($less);
   open(OUTPUT, "| $less");
-  print OUTPUT "$package_name: $command{$package_name}{about}\n";
+  print OUTPUT "$package_name: $COMMAND{$package_name}{about}\n";
   print OUTPUT $self->{'help'};
   print OUTPUT "\nDifferences from git $package_name:";
   print OUTPUT "\n  None.\n" if !defined $self->{'differences'};
@@ -216,7 +218,7 @@ sub run {
     $package_name eq "subcommand" ? $self->{'command'} : $package_name;
 
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$git_cmd $subcommand @ARGV", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD $subcommand @ARGV", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -225,7 +227,7 @@ sub run {
 package add;
 @add::ISA = qw(subcommand);
 INIT {
-  $command{add} = {
+  $COMMAND{add} = {
     unmodified_behavior => 1,
     section => 'compatibility',
     about => 'Mark content in files as being ready for commit'
@@ -250,7 +252,7 @@ Description:
 package apply;
 @apply::ISA = qw(subcommand);
 INIT {
-  $command{apply} = {
+  $COMMAND{apply} = {
     about => 'Apply a patch in a git repository'
   };
 }
@@ -299,7 +301,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $result = main::GetOptions("--help" => sub { $self->help() });
   foreach my $i (0..$#ARGV) {
@@ -313,11 +314,11 @@ sub preprocess {
 package branch;
 @branch::ISA = qw(subcommand);
 INIT {
-  $command{branch} = {
+  $COMMAND{branch} = {
     section => 'projects',
     about => 'List, create, or delete branches'
     };
-  $alias{'br'} = "branch";
+  $ALIAS{'br'} = "branch";
 }
 
 sub new {
@@ -384,7 +385,6 @@ Options:
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $switch = 0;
   if (scalar(@ARGV) > 1 && $ARGV[0] eq "-s") {
@@ -393,8 +393,8 @@ sub run {
   }
 
   @ARGV = Util::quote_args(@ARGV);
-  my $ret = ExecUtil::execute("$git_cmd branch @ARGV", ignore_ret => 1);
-  $ret = ExecUtil::execute("$git_cmd checkout $ARGV[0]", ignore_ret => 1)
+  my $ret = ExecUtil::execute("$GIT_CMD branch @ARGV", ignore_ret => 1);
+  $ret = ExecUtil::execute("$GIT_CMD checkout $ARGV[0]", ignore_ret => 1)
     if ($switch && $ret == 0);
   return $ret;
 }
@@ -405,7 +405,7 @@ sub run {
 package bundle;
 @bundle::ISA = qw(subcommand);
 INIT {
-  $command{bundle} = {
+  $COMMAND{bundle} = {
     extra => 1,
     section => 'collaboration',
     about => 'Pack repository updates (or whole repository) into a file'
@@ -510,7 +510,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -541,7 +540,7 @@ sub preprocess {
     die "$oldname does not exist.\n" if ! -f $oldname;
 
     my ($retval, $output) =
-      ExecUtil::execute_captured("$git_cmd bundle list-heads $oldname");
+      ExecUtil::execute_captured("$GIT_CMD bundle list-heads $oldname");
     my @lines = split '\n', $output;
 
     my @refs = map { m#^([0-9a-f]+)# && "^$1" } @lines;
@@ -559,7 +558,7 @@ sub preprocess {
 package cat;
 @cat::ISA = qw(subcommand);
 INIT {
-  $command{cat} = {
+  $COMMAND{cat} = {
     new_command => 1,
     extra => 1,
     section => 'compatibility',
@@ -613,7 +612,6 @@ Examples
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $result=main::GetOptions("--help" => sub { $self->help() });
 
@@ -637,10 +635,9 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$git_cmd show @ARGV", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD show @ARGV", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -649,7 +646,7 @@ sub run {
 package changes;
 @changes::ISA = qw(subcommand);
 INIT {
-  $command{changes} = {
+  $COMMAND{changes} = {
     new_command => 1,
     section => 'misc',
     about => 'Provide an overview of the changes from git to eg'
@@ -688,9 +685,8 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
-  if ($debug == 2) {
+  if ($DEBUG == 2) {
     print "    >>(No commands to run, just data to print)<<\n";
     return;
   }
@@ -699,9 +695,9 @@ sub run {
   my $indent = "  ";
   my $header_indent = "";
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($use_pager == 1) ? "less" :
-             ($use_pager == 0) ? "cat" :
-             `$git_cmd config core.pager` || "less";
+  my $less = ($USE_PAGER == 1) ? "less" :
+             ($USE_PAGER == 0) ? "cat" :
+             `$GIT_CMD config core.pager` || "less";
   chomp($less);
   open(OUTPUT, "| $less");
 
@@ -711,27 +707,27 @@ sub run {
     $header_indent = "  ";
   }
   print OUTPUT "${header_indent}Modified Behavior:\n";
-  foreach my $c (sort keys %command) {
-    next if $command{$c}{unmodified_behavior};
-    next if $command{$c}{new_command};
+  foreach my $c (sort keys %COMMAND) {
+    next if $COMMAND{$c}{unmodified_behavior};
+    next if $COMMAND{$c}{new_command};
     print OUTPUT "$indent$c\n";
   }
   print OUTPUT "${header_indent}New commands:\n";
-  foreach my $c (sort keys %command) {
-    next if !$command{$c}{new_command};
+  foreach my $c (sort keys %COMMAND) {
+    next if !$COMMAND{$c}{new_command};
     print OUTPUT "$indent$c\n";
   }
   print OUTPUT "${header_indent}Modified Help Only:\n";
-  foreach my $c (sort keys %command) {
-    next if $command{$c}{unmodified_help};
-    next if !$command{$c}{unmodified_behavior};
-    next if $command{$c}{new_command};
+  foreach my $c (sort keys %COMMAND) {
+    next if $COMMAND{$c}{unmodified_help};
+    next if !$COMMAND{$c}{unmodified_behavior};
+    next if $COMMAND{$c}{new_command};
     print OUTPUT "$indent$c\n";
   }
 
   if ($self->{details}) {
-    foreach my $c (sort keys %command) {
-      next if $command{$c}{unmodified_help} || $command{$c}{unmodified_behavior};
+    foreach my $c (sort keys %COMMAND) {
+      next if $COMMAND{$c}{unmodified_help} || $COMMAND{$c}{unmodified_behavior};
 
       my $real_c = $c;
       $c =~ s/-/_/;  # Packages use underscores, commands use dashes
@@ -756,7 +752,7 @@ sub run {
 package checkout;
 @checkout::ISA = qw(subcommand);
 INIT {
-  $command{checkout} = {
+  $COMMAND{checkout} = {
     section => 'compatibility',
     about => 'Compatibility wrapper for clone/switch/revert'
   };
@@ -829,7 +825,7 @@ Examples:
   return $self;
 }
 
-sub _looks_like_git_repo {
+sub _looks_like_git_repo ($) {
   my $path = shift;
 
   my $clone_protocol = qr#^(?:git|ssh|http|https|rsync)://#;
@@ -854,7 +850,6 @@ sub _looks_like_git_repo {
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   if (scalar(@ARGV) > 0 && $ARGV[0] ne "--") {
     main::GetOptions("--help" => sub { $self->help() });
@@ -885,7 +880,7 @@ sub run {
     $self->{git_dir} = RepoUtil::git_dir();
     die "Must be run inside a git repository!\n" if !defined $self->{git_dir};
 
-    return ExecUtil::execute("$git_cmd checkout @ARGV", ignore_ret => 1);
+    return ExecUtil::execute("$GIT_CMD checkout @ARGV", ignore_ret => 1);
   } else {
     die "Did you mean to run\n  eg clone @ARGV\n?\n";
   }
@@ -897,7 +892,7 @@ sub run {
 package cherry_pick;
 @cherry_pick::ISA = qw(subcommand);
 INIT {
-  $command{"cherry-pick"} = {
+  $COMMAND{"cherry-pick"} = {
     extra => 1,
     section => 'modification',
     about => 'Apply (or reverse) a commit, usually from another branch'
@@ -984,7 +979,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($reverse, $dash_x, $mainline) = (0, 0, -1);
   Getopt::Long::Configure("permute");  # Allow unrecognized options through
@@ -1005,9 +999,9 @@ sub run {
 
   @ARGV = Util::quote_args(@ARGV);
   if ($self->{reverse}) {
-    return ExecUtil::execute("$git_cmd revert @ARGV", ignore_ret => 1);
+    return ExecUtil::execute("$GIT_CMD revert @ARGV", ignore_ret => 1);
   } else {
-    return ExecUtil::execute("$git_cmd cherry-pick @ARGV", ignore_ret => 1);
+    return ExecUtil::execute("$GIT_CMD cherry-pick @ARGV", ignore_ret => 1);
   }
 }
 
@@ -1017,7 +1011,7 @@ sub run {
 package clone;
 @clone::ISA = qw(subcommand);
 INIT {
-  $command{clone} = {
+  $COMMAND{clone} = {
     section => 'creation',
     about => 'Clone a repository into a new directory'
   };
@@ -1068,7 +1062,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   $self->{bare} = 0;
   my @old_argv = @ARGV;
@@ -1104,14 +1097,14 @@ sub run {
   # Perform the clone
   #
   @ARGV = Util::quote_args(@ARGV);
-  my $ret = ExecUtil::execute("$git_cmd clone @ARGV", ignore_ret => 1);
+  my $ret = ExecUtil::execute("$GIT_CMD clone @ARGV", ignore_ret => 1);
   return $ret if $self->{bare};
-  if ($debug == 2) {
+  if ($DEBUG == 2) {
     print "    >>Running: 'cd $self->{directory}'<<\n";
-    print "    >>Running: '$git_cmd branch -r'<<\n";
+    print "    >>Running: '$GIT_CMD branch -r'<<\n";
     print "    --- Setting up extra branches by default ---\n";
     print "    >>Running, for each remote branch besides master (referred to as BRANCH):\n";
-    print "        $git_cmd branch BRANCH origin/BRANCH\n";
+    print "        $GIT_CMD branch BRANCH origin/BRANCH\n";
   } elsif ($ret == 0) {
     # Switch to the appropriate directory, remembering the repository we
     # checked out
@@ -1123,27 +1116,27 @@ sub run {
 
     # Determine local and remote branches
     my @remote_branches =
-      split('\n', `$git_cmd for-each-ref --format '%(refname)' refs/remotes`);
+      split('\n', `$GIT_CMD for-each-ref --format '%(refname)' refs/remotes`);
     @remote_branches = map { m#^refs/remotes/(.*)$# && $1 } @remote_branches;
     my @local_branches =
-      split('\n', `$git_cmd for-each-ref --format '%(refname)' refs/heads`);
+      split('\n', `$GIT_CMD for-each-ref --format '%(refname)' refs/heads`);
     @local_branches = map { m#^refs/heads/(.*)$# && $1 } @local_branches;
 
     # Set branch.@local_branches.rebase to true if branch.autosetuprebse is true
-    my $autosetuprebase = `$git_cmd config --global branch.autosetuprebase`;
+    my $autosetuprebase = `$GIT_CMD config --global branch.autosetuprebase`;
     chomp($autosetuprebase);
     if ($autosetuprebase eq 'always' || $autosetuprebase eq 'remote') {
       foreach my $branch (@local_branches) {
-        ExecUtil::execute("$git_cmd config branch.$branch.rebase true");
+        ExecUtil::execute("$GIT_CMD config branch.$branch.rebase true");
       }
     }
 
     # Set up a branch for each remote branch, not just master
     foreach my $b (@remote_branches) {
-      ($remote, $branch) = ($b =~ m#^(.*)/(.*?)$#);
+      my ($remote, $branch) = ($b =~ m#^(.*)/(.*?)$#);
       next if $branch eq "HEAD";
       next if grep {$branch eq $_} @local_branches;
-      ExecUtil::execute("$git_cmd branch $branch $remote/$branch > /dev/null");
+      ExecUtil::execute("$GIT_CMD branch $branch $remote/$branch > /dev/null");
     }
   }
 
@@ -1156,12 +1149,12 @@ sub run {
 package commit;
 @commit::ISA = qw(subcommand);
 INIT {
-  $command{commit} = {
+  $COMMAND{commit} = {
     section => 'modification',
     about => 'Record changes locally'
     };
-  $alias{'checkin'} = "commit";
-  $alias{'ci'}      = "commit";
+  $ALIAS{'checkin'} = "commit";
+  $ALIAS{'ci'}      = "commit";
 }
 
 sub new {
@@ -1397,7 +1390,7 @@ EOF
 package config;
 @config::ISA = qw(subcommand);
 INIT {
-  $command{config} = {
+  $COMMAND{config} = {
     unmodified_behavior => 1,
     extra => 1,
     section => 'misc',
@@ -1445,7 +1438,7 @@ Examples:
 package diff;
 @diff::ISA = qw(subcommand);
 INIT {
-  $command{diff} = {
+  $COMMAND{diff} = {
     section => 'discovery',
     about => 'Show changes to file contents'
     };
@@ -1542,7 +1535,7 @@ Options:
 
     The .. operator of git diff (e.g. git diff master..devel) means what
     the ... operator of git log means, and vice-versa.  This causes lots of
-    confusion.  We fix this by aliasing making the .. operator of eg diff
+    confusion.  We fix this by making the .. operator of eg diff
     do exactly what the ... operator of git diff does.  To see why:
     
     Meanings of git commands, as a reminder (A and B are revisions):
@@ -1579,7 +1572,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   # Avoid Util::git_rev_parse because it fails on t2010-checkout-ambiguous by
   # treating "--quiet" as a revision rather than an option; use our own
@@ -1667,7 +1659,7 @@ EOF
 package difftool;
 @difftool::ISA = qw(diff);
 INIT {
-  $command{difftool} = {
+  $COMMAND{difftool} = {
     new_command => 1,
     extra => 1,
     section => 'discovery',
@@ -1721,7 +1713,7 @@ Example:
 package gc;
 @gc::ISA = qw(subcommand);
 INIT {
-  $command{gc} = {
+  $COMMAND{gc} = {
     unmodified_behavior => 1,
     extra => 1,
     section => 'timesavers',
@@ -1757,7 +1749,7 @@ Description:
 package help;
 @help::ISA = qw(subcommand);
 INIT {
-  $command{help} = {
+  $COMMAND{help} = {
     section => 'misc',
     about => 'Get command syntax and examples'
     };
@@ -1819,7 +1811,6 @@ Examples:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   $self->{all} = 0;
   my $result=main::GetOptions("--help" => sub { $self->help() },
@@ -1828,9 +1819,8 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
-  if ($debug == 2) {
+  if ($DEBUG == 2) {
     print "    >>(No commands to run, just data to print)<<\n";
     return;
   }
@@ -1851,7 +1841,7 @@ sub run {
             " equivalent to git $orig_subcommand).\nWill try running 'git" .
             " help $orig_subcommand' in 2 seconds...\n";
       sleep 2;
-      exit ExecUtil::execute("$git_cmd help $orig_subcommand");
+      exit ExecUtil::execute("$GIT_CMD help $orig_subcommand");
     }
 
     my $subcommand_obj = $subcommand->new(initial_commit_error_msg => '',
@@ -1861,9 +1851,9 @@ sub run {
 
   # Set up a pager, if wanted
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($use_pager == 1) ? "less" :
-             ($use_pager == 0) ? "cat" :
-             `$git_cmd config core.pager` || "less";
+  my $less = ($USE_PAGER == 1) ? "less" :
+             ($USE_PAGER == 0) ? "cat" :
+             `$GIT_CMD config core.pager` || "less";
   chomp($less);
   open(OUTPUT, "| $less");
 
@@ -1874,25 +1864,25 @@ sub run {
 
   # Print valid subcommands sorted by section
   foreach my $name (sort
-                    {$section->{$a}{'order'} <=> $section->{$b}{'order'}}
-                    keys %$section) {
-    next if $section->{$name}{extra} && !$self->{all};
-    print OUTPUT "$section->{$name}{desc}\n";
-    foreach my $c (sort keys %command) {
-      next if !defined $command{$c}{section};
-      next if $command{$c}{section} ne $name;
-      next if $command{$c}{extra} && !$self->{all};
-      printf OUTPUT "  eg %-11s %s\n", $c, $command{$c}{about};
+                    {$SECTION->{$a}{'order'} <=> $SECTION->{$b}{'order'}}
+                    keys %$SECTION) {
+    next if $SECTION->{$name}{extra} && !$self->{all};
+    print OUTPUT "$SECTION->{$name}{desc}\n";
+    foreach my $c (sort keys %COMMAND) {
+      next if !defined $COMMAND{$c}{section};
+      next if $COMMAND{$c}{section} ne $name;
+      next if $COMMAND{$c}{extra} && !$self->{all};
+      printf OUTPUT "  eg %-11s %s\n", $c, $COMMAND{$c}{about};
     }
     print OUTPUT "\n";
   }
 
   # Check to see if someone added a command with an invalid section
   my $broken_commands = "";
-  foreach my $c (keys %command) {
-    next if !defined $command{$c}{section};
-    next if defined $section->{$command{$c}{section}};
-    my $tmp = sprintf("  eg %-10s %s\n", $c, $command{$c}{about});
+  foreach my $c (keys %COMMAND) {
+    next if !defined $COMMAND{$c}{section};
+    next if defined $SECTION->{$COMMAND{$c}{section}};
+    my $tmp = sprintf("  eg %-10s %s\n", $c, $COMMAND{$c}{about});
     $broken_commands .= $tmp;
   }
   if ($broken_commands) {
@@ -2037,7 +2027,7 @@ run 'eg rebase --continue' to allow the rebase operation to continue.
                                       );
 }
 
-sub _conflict_resolution_message {
+sub _conflict_resolution_message (%) {
   my $opts = {op              => "!!!FIXME!!!",
               show_empty_case => 0,
               extra_stop_info => '',
@@ -2801,9 +2791,9 @@ storage       High level overview of how commits, tags, and branches are stored
   }
 
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($use_pager == 1) ? "less" :
-             ($use_pager == 0) ? "cat" :
-             `$git_cmd config core.pager` || "less";
+  my $less = ($USE_PAGER == 1) ? "less" :
+             ($USE_PAGER == 0) ? "cat" :
+             `$GIT_CMD config core.pager` || "less";
   chomp($less);
   open(OUTPUT, "| $less");
   print OUTPUT "$topic\n";
@@ -2819,7 +2809,7 @@ storage       High level overview of how commits, tags, and branches are stored
 package info;
 @info::ISA = qw(subcommand);
 INIT {
-  $command{info} = {
+  $COMMAND{info} = {
     new_command => 1,
     section => 'discovery',
     extra => 1,
@@ -2915,7 +2905,7 @@ sub preprocess {
   if ($path) {
     die "$path does not look like a directory.\n" if ! -d $path;
     my ($ret, $useless_output) =
-      ExecUtil::execute_captured("$git_cmd ls-remote $path", ignore_ret => 1);
+      ExecUtil::execute_captured("$GIT_CMD ls-remote $path", ignore_ret => 1);
     if ($ret != 0) {
       die "$path does not appear to be a git archive " .
           "(maybe it has no commits yet?).\n";
@@ -2937,7 +2927,7 @@ sub run {
   # Special case the situation of no commits being present
   #
   if (RepoUtil::initial_commit()) {
-    if ($debug < 2) {
+    if ($DEBUG < 2) {
       print STDERR <<EOF;
 Total commits: 0
 Local repository: $self->{git_dir}
@@ -2953,23 +2943,23 @@ EOF
   #
 
   # total commits
-  my $total_commits = ExecUtil::output("$git_cmd rev-list --all | wc -l");
-  print "Total commits: $total_commits\n" if $debug < 2;
+  my $total_commits = ExecUtil::output("$GIT_CMD rev-list --all | wc -l");
+  print "Total commits: $total_commits\n" if $DEBUG < 2;
 
   # local repo
-  print "Local repository: $self->{git_dir}\n" if $debug < 2;
+  print "Local repository: $self->{git_dir}\n" if $DEBUG < 2;
 
   # named remote repos
   my %remotes;
   my $longest = 0;
-  my @abbrev_remotes = split('\n', ExecUtil::output("$git_cmd remote"));
-  foreach $remote (@abbrev_remotes) {
+  my @abbrev_remotes = split('\n', ExecUtil::output("$GIT_CMD remote"));
+  foreach my $remote (@abbrev_remotes) {
     chomp($remote);
     my $url = RepoUtil::get_config("remote.$remote.url");
     $remotes{$remote} = $url;
     $longest = main::max($longest, length($remote));
   }
-  if (scalar keys %remotes > 0 && $debug < 2) {
+  if (scalar keys %remotes > 0 && $DEBUG < 2) {
     print "Named remote repositories: (name -> location)\n";
     foreach my $remote (sort keys %remotes) {
       printf "  %${longest}s -> %s\n", $remote, $remotes{$remote};
@@ -2986,17 +2976,17 @@ EOF
   chdir($top_dir);
 
   # Name
-  print "Current branch: $branch\n" if $debug < 2;
+  print "Current branch: $branch\n" if $DEBUG < 2;
 
   # Sha1sum
-  my $current_commit = ExecUtil::output("$git_cmd show-ref -s -h | head -n 1");
-  print "  Cryptographic checksum (sha1sum): $current_commit\n" if $debug < 2;
+  my $current_commit = ExecUtil::output("$GIT_CMD show-ref -s -h | head -n 1");
+  print "  Cryptographic checksum (sha1sum): $current_commit\n" if $DEBUG < 2;
 
   # Default pull/push options
   my $default = "-None-";
   my $print_config_options = 0;
   my ($ret, $options) =
-    ExecUtil::execute_captured("$git_cmd config --get-regexp " .
+    ExecUtil::execute_captured("$GIT_CMD config --get-regexp " .
                                "^branch\.$branch\.*", ignore_ret => 1);
   chomp($options);
   my @lines;
@@ -3009,12 +2999,12 @@ EOF
       $default = $1;
       $print_config_options = ($line_count > 1);
     } else {
-      my @output = `$git_cmd config --get-regexp remote.origin.*`;
+      my @output = `$GIT_CMD config --get-regexp remote.origin.*`;
       $default = "origin" if @output;
     }
   }
-  print "  Default pull/push repository: $default\n" if $debug < 2;
-  if ($print_config_options && $debug < 2) {
+  print "  Default pull/push repository: $default\n" if $DEBUG < 2;
+  if ($print_config_options && $DEBUG < 2) {
     print "  Default pull/push options:\n";
     foreach my $line (@lines) {
       $line =~ s/\s+/ = /;
@@ -3023,25 +3013,25 @@ EOF
   }
 
   # No. contributors
-  my $contributors  = ExecUtil::output("$git_cmd shortlog -s -n HEAD | wc -l");
-  print "  Number of contributors: $contributors\n" if $debug < 2;
+  my $contributors  = ExecUtil::output("$GIT_CMD shortlog -s -n HEAD | wc -l");
+  print "  Number of contributors: $contributors\n" if $DEBUG < 2;
 
   # No. files
-  my $num_files = ExecUtil::output("$git_cmd ls-tree -r HEAD | wc -l");
-  print "  Number of files: $num_files\n" if $debug < 2;
+  my $num_files = ExecUtil::output("$GIT_CMD ls-tree -r HEAD | wc -l");
+  print "  Number of files: $num_files\n" if $DEBUG < 2;
 
   # No. dirs
   my $num_dirs = ExecUtil::output(
-                    "$git_cmd ls-tree -r -t HEAD " .
+                    "$GIT_CMD ls-tree -r -t HEAD " .
                     " | grep -E '[0-9]+ tree'" .
                     " | wc -l");
-  print "  Number of directories: $num_dirs\n" if $debug < 2;
+  print "  Number of directories: $num_dirs\n" if $DEBUG < 2;
 
   # Some ugly, nasty code to get the biggest file.  Seems to be the only
   # method I could find that would work given the corner case filenames
   # (spaces and unicode chars) in the git.git repo (Try eg info on repo
   # from 'git clone git://git.kernel.org/pub/scm/git/git.git').
-  my @files = `$git_cmd ls-tree -r -l --full-name HEAD`;
+  my @files = `$GIT_CMD ls-tree -r -l --full-name HEAD`;
   my %biggest = (name => '', size => 0);
   foreach my $line (@files) {
     if ($line =~ m#^[0-9]+ [a-z]+ [0-9a-f]+[ ]*(\d+)[ \t]*(.*)$#) {
@@ -3054,11 +3044,11 @@ EOF
     }
   }
   my $biggest_file = "$biggest{size} ($biggest{name})";
-  print "  Biggest file size, in bytes: $biggest_file\n" if $debug < 2;
+  print "  Biggest file size, in bytes: $biggest_file\n" if $DEBUG < 2;
 
   # No. commits
-  my $branch_depth  = ExecUtil::output("$git_cmd rev-list HEAD | wc -l");
-  print "  Commits: $branch_depth\n" if $debug < 2;
+  my $branch_depth  = ExecUtil::output("$GIT_CMD rev-list HEAD | wc -l");
+  print "  Commits: $branch_depth\n" if $DEBUG < 2;
 
   # Other possibilities:
   #   Disk space used by respository (du -hs .git, or packfile size?)
@@ -3077,7 +3067,7 @@ EOF
 package init;
 @init::ISA = qw(subcommand);
 INIT {
-  $command{init} = {
+  $COMMAND{init} = {
     unmodified_behavior => 1,
     section => 'creation',
     about => 'Create a new repository'
@@ -3148,7 +3138,7 @@ Options:
 package log;
 @log::ISA = qw(subcommand);
 INIT {
-  $command{log} = {
+  $COMMAND{log} = {
     section => 'discovery',
     about => 'Show history of recorded changes'
     };
@@ -3182,7 +3172,7 @@ Description:
   return $self;
 }
 
-sub _get_values {
+sub _get_values ($$) {
   my ($names, $sha1sum) = @_;
   my ($name, $distance);
   if (defined($names->{$sha1sum})) {
@@ -3191,13 +3181,13 @@ sub _get_values {
   return ($name, $distance);
 }
 
-sub _path_count {
+sub _path_count ($) {
   my ($name) = @_;
   my @matches = ($name =~ m/[~^]/g);
   return scalar @matches;
 }
 
-sub _get_revision_name {
+sub _get_revision_name ($$$) {
   my ($sha1sum, $filehandle, $names) = @_;
   my ($name, $distance);
 
@@ -3222,13 +3212,14 @@ sub _get_revision_name {
     # Determine any name we previously determined for $parent, the name we
     # would give it relative to $child, and determine which should "win"
     my ($orig_parent_name, $orig_parent_distance) = _get_values($names, $parent);
+    my $parent_name;
     if ($cur_name =~ /^(.*)~(\d+)$/) {
       my $count = $2 + 1;
       $parent_name = "$1~$count";
     } else {
       $parent_name = "$cur_name~1";
     }
-    $parent_distance = $distance + 1;
+    my $parent_distance = $distance + 1;
     if (!$orig_parent_name ||
         _path_count($orig_parent_name) > _path_count($parent_name)) {
       $names->{$parent} = [$parent_name, $parent_distance];
@@ -3271,48 +3262,48 @@ sub run {
   # all the arguments to determine if there is a valid revision listed on the
   # command line (or, failing that, whether HEAD reference a valid revision);
   # instead, we just check for the simple case of no branches existing yet.
-  if (!`$git_cmd branch -a`) {
+  if (!`$GIT_CMD branch -a`) {
     die "Error: No recorded commits to show yet.\n";
   }
 
   # We can just run plain git log if there's not current branch
   if (!$branch || !RepoUtil::valid_ref($branch)) {
-    return ExecUtil::execute("$git_cmd log @ARGV", ignore_ret => 1);
+    return ExecUtil::execute("$GIT_CMD log @ARGV", ignore_ret => 1);
   }
 
   my ($ret, $revision) =
-    ExecUtil::execute_captured("$git_cmd rev-parse refs/heads/$branch");
+    ExecUtil::execute_captured("$GIT_CMD rev-parse refs/heads/$branch");
   exit $ret if $ret;
   chomp($revision);
 
   # Show the user the essential equivalent to what we manually do
-  if ($debug) {
-    print "    >>Running: $git_cmd log @ARGV | \\\n" .
-       "               $git_cmd name-rev --stdin " .
+  if ($DEBUG) {
+    print "    >>Running: $GIT_CMD log @ARGV | \\\n" .
+       "               $GIT_CMD name-rev --stdin " .
            "--refs=refs/heads/$branch | \\\n" .
        "               less\n";
-    return 0 if $debug == 2;
+    return 0 if $DEBUG == 2;
   }
 
   # Setup name determination via output from git rev-list
   my %names;
-  open(REV_LIST_INPUT, "$git_cmd rev-list --parents $branch -- | ");
+  open(REV_LIST_INPUT, "$GIT_CMD rev-list --parents $branch -- | ");
   $names{$revision} = [$branch, 0];
 
   # Loop over the output of git log, printing/modifying as we go
   my $use_colors = -t STDOUT ? "GIT_PAGER_IN_USE=1" : "";
-  open(INPUT, "$use_colors $git_cmd log @ARGV | ");
+  open(INPUT, "$use_colors $GIT_CMD log @ARGV | ");
   $ENV{"LESS"} = "FRSX" unless defined $ENV{"LESS"};
-  my $less = ($use_pager == 1) ? "less" :
-             ($use_pager == 0) ? "cat" :
-             `$git_cmd config core.pager` || "less";
+  my $less = ($USE_PAGER == 1) ? "less" :
+             ($USE_PAGER == 0) ? "cat" :
+             `$GIT_CMD config core.pager` || "less";
   chomp($less);
   my $pid = open(OUTPUT, "| $less");
 
   # Make sure that we don't leave the terminal in a weird state if the user
   # hits Ctrl-C during eg log
   local $SIG{INT} = 
-    sub { kill SIGKILL, $pid; close(INPUT); close(OUTPUT); close(REV_LIST_INPUT);
+    sub { kill 'SIGKILL', $pid; close(INPUT); close(OUTPUT); close(REV_LIST_INPUT);
           exit(0); };
  
   #open(OUTPUT, ">&STDOUT");
@@ -3320,7 +3311,7 @@ sub run {
     # If it's a commit line, determine the name of the commit and print it too
     # ANSI color escape sequences make this regex kind of ugly...
     if (/^((?:\e\[.*?m)?commit ([0-9a-f]{40}))((?:\e\[m)?)$/) {
-      my $name = _get_revision_name($2, REV_LIST_INPUT, \%names);
+      my $name = _get_revision_name($2, *REV_LIST_INPUT, \%names);
       print OUTPUT "$1 ($name)$3\n" if $name;
       print OUTPUT "$1$3\n"         if !$name;
     } else {
@@ -3351,7 +3342,7 @@ sub run {
 package merge;
 @merge::ISA = qw(subcommand);
 INIT {
-  $command{merge} = {
+  $COMMAND{merge} = {
     unmodified_behavior => 1,
     section => 'projects',
     about => 'Join two or more development histories (branches) together'
@@ -3415,7 +3406,7 @@ Options:
 package publish;
 @publish::ISA = qw(subcommand);
 INIT {
-  $command{publish} = {
+  $COMMAND{publish} = {
     extra => 1,
     new_command => 1,
     section => 'collaboration',
@@ -3602,7 +3593,7 @@ sub run {
         if (! which git>/dev/null);then echo 'Cannot find git'; exit 1; fi;
         ${sg}mkdir -p $path${sge} &&
         cd $path &&
-        ${sg}$git_cmd init ${shared}--bare${sge} &&
+        ${sg}$GIT_CMD init ${shared}--bare${sge} &&
         touch git-daemon-export-ok &&
         (mv hooks/post-update.sample hooks/post-update || true) &&
         chmod u+x hooks/post-update",
@@ -3615,11 +3606,11 @@ sub run {
   #  print "If $self->{remote} should be a default push/pull location, run:\n" .
   #        "   eg track [LOCAL_BRANCH] $self->{remote}/REMOTE_BRANCH\n";
   #}
-  ExecUtil::execute("$git_cmd remote add $self->{remote} $self->{repository}");
+  ExecUtil::execute("$GIT_CMD remote add $self->{remote} $self->{repository}");
   print "Pushing to new remote $self->{remote}...\n";
-  $ret = ExecUtil::execute("$git_cmd push --mirror $self->{remote}");
+  $ret = ExecUtil::execute("$GIT_CMD push --mirror $self->{remote}");
   if ($ret) {
-    ExecUtil::execute("$git_cmd remote rm $self->{remote}");
+    ExecUtil::execute("$GIT_CMD remote rm $self->{remote}");
     return $ret;
   }
 
@@ -3634,7 +3625,7 @@ sub run {
 package pull;
 @pull::ISA = qw(subcommand);
 INIT {
-  $command{pull} = {
+  $COMMAND{pull} = {
     section => 'collaboration',
     about => 'Get updates from another repository and merge them'
     };
@@ -3770,7 +3761,6 @@ Options
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -3902,8 +3892,8 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
-  return ExecUtil::execute("$git_cmd pull @args", ignore_ret => 1);
+  my @args = Util::quote_args(@{$self->{args}});
+  return ExecUtil::execute("$GIT_CMD pull @args", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -3912,7 +3902,7 @@ sub run {
 package push;
 @push::ISA = qw(subcommand);
 INIT {
-  $command{push} = {
+  $COMMAND{push} = {
     section => 'collaboration',
     about => 'Push local commits to a published repository'
     };
@@ -4060,7 +4050,7 @@ Options
   return $self;
 }
 
-sub _get_push_repository {
+sub _get_push_repository ($) {
   my ($repository) = @_;
 
   if (defined $repository) {
@@ -4076,7 +4066,7 @@ sub _get_push_repository {
 # undef the repository doesn't specify a valid repository or the repository
 # is not of a type where we can determine bare-ness.  Otherwise returns
 # either the string "true" or "false".
-sub _check_if_bare {
+sub _check_if_bare ($) {
   my $repository = shift;
 
   # Don't know how to check rsync, http, https, or git repositories to see
@@ -4094,7 +4084,7 @@ sub _check_if_bare {
     chdir($repository);
 
     my ($ret, $output) = 
-      ExecUtil::execute_captured("$git_cmd rev-parse --is-bare-repository",
+      ExecUtil::execute_captured("$GIT_CMD rev-parse --is-bare-repository",
                                  ignore_ret => 1);
 
     chdir($orig_dir);
@@ -4111,7 +4101,7 @@ sub _check_if_bare {
 
   my ($ret, $output) = 
     ExecUtil::execute_captured(
-      "ssh $port -q -o BatchMode=yes $user$machine 'cd $path && $git_cmd rev-parse --is-bare-repository'",
+      "ssh $port -q -o BatchMode=yes $user$machine 'cd $path && $GIT_CMD rev-parse --is-bare-repository'",
       ignore_ret => 1);
   return undef if $ret != 0;
   chomp($output);
@@ -4271,7 +4261,7 @@ EOF
     # 3 - branch.$branch.merge option
     if (!$default_known) {
       my $branch = RepoUtil::current_branch();
-      $push_branch = RepoUtil::get_config("branch.$branch.merge");
+      my $push_branch = RepoUtil::get_config("branch.$branch.merge");
       if (defined $push_branch) {
         $push_branch =~ s#refs/heads/##;
         push(@{$self->{args}}, "$branch:$push_branch");
@@ -4298,8 +4288,8 @@ EOF
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
-  return ExecUtil::execute("$git_cmd push @args", ignore_ret => 1);
+  my @args = Util::quote_args(@{$self->{args}});
+  return ExecUtil::execute("$GIT_CMD push @args", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -4308,7 +4298,7 @@ sub run {
 package rebase;
 @rebase::ISA = qw(subcommand);
 INIT {
-  $command{rebase} = {
+  $COMMAND{rebase} = {
     extra => 1,
     section => 'timesavers',
     about => "Port local commits, making them be based on a different\n" .
@@ -4522,7 +4512,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -4555,8 +4544,8 @@ sub preprocess {
 sub run {
   my $self = shift;
 
-  @args = Util::quote_args(@{$self->{args}});
-  return ExecUtil::execute("$git_cmd rebase @args", ignore_ret => 1);
+  my @args = Util::quote_args(@{$self->{args}});
+  return ExecUtil::execute("$GIT_CMD rebase @args", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -4565,7 +4554,7 @@ sub run {
 package remote;
 @remote::ISA = qw(subcommand);
 INIT {
-  $command{remote} = {
+  $COMMAND{remote} = {
     unmodified_behavior => 1,
     extra => 1,
     section => 'collaboration',
@@ -4671,7 +4660,7 @@ Examples:
 package reset;
 @reset::ISA = qw(subcommand);
 INIT {
-  $command{reset} = {
+  $COMMAND{reset} = {
     extra => 1,
     section => 'modification',
     about => 'Forget local commits and (optionally) undo their changes'
@@ -4781,7 +4770,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   #
   # Parse options
@@ -4806,7 +4794,7 @@ sub preprocess {
 package resolved;
 @resolved::ISA = qw(subcommand);
 INIT {
-  $command{resolved} = {
+  $COMMAND{resolved} = {
     new_command => 1,
     extra => 1,
     section => 'compatibility',
@@ -4848,14 +4836,13 @@ Examples
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   die "Error: Must specify paths to resolve.\n" if !@ARGV;
   @ARGV = Util::quote_args(@ARGV);
 
   # Determine which files are actually unmerged
   my ($ret, $output) =
-    ExecUtil::execute_captured("$git_cmd ls-files -u --error-unmatch @ARGV",
+    ExecUtil::execute_captured("$GIT_CMD ls-files -u --error-unmatch @ARGV",
       ignore_ret => 1);
   chomp($output);
   my @lines = split('\n', $output);
@@ -4889,7 +4876,7 @@ sub run {
 
   # Run add -u instead of just add, since we want locally deleted files to
   # be picked up as well.
-  return ExecUtil::execute("$git_cmd add -u @unmerged_files", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD add -u @unmerged_files", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -4898,7 +4885,7 @@ sub run {
 package revert;
 @revert::ISA = qw(subcommand);
 INIT {
-  $command{revert} = {
+  $COMMAND{revert} = {
     section => 'modification',
     about => 'Revert local changes and/or changes from previous commits'
     };
@@ -5091,7 +5078,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
   my $initial_commit = RepoUtil::initial_commit();
@@ -5215,7 +5201,7 @@ EOF
   }
 
   my @quoted_files = Util::quote_args(@$files);
-  my @unmerged_files = `$git_cmd ls-files --full-name -u -- @quoted_files`;
+  my @unmerged_files = `$GIT_CMD ls-files --full-name -u -- @quoted_files`;
   if (@unmerged_files && $in) {
     die "Aborting: please clear conflicts from @unmerged_files before " .
         "proceeding.\n";
@@ -5233,7 +5219,7 @@ EOF
     # Get the revision whose changes we want to revert, and its parents
     Util::push_debug(new_value => 0);
     my $links = ExecUtil::output(
-                  "$git_cmd rev-list --parents --max-count=1 $self->{revs}");
+                  "$GIT_CMD rev-list --parents --max-count=1 $self->{revs}");
     Util::pop_debug();
     my @list = split(' ', $links);  # commit id + parent ids
 
@@ -5261,6 +5247,7 @@ EOF
   # Determine some other stuff needed 
   $self->{files} = \@quoted_files;
   my ($new_files, $newish_files, $revert_files);
+  my ($newly_added_files, $new_since_rev_files, $other_files);
   if (!$in && !$initial_commit) {
     my $revision = (@$revs) ? $revs->[0] : "HEAD";
     ($newly_added_files, $new_since_rev_files, $other_files) =
@@ -5293,7 +5280,7 @@ sub run {
     # Case: Initial commit
     #
     if ($self->{initial_commit}) {
-      $ret = ExecUtil::execute("$git_cmd rm --cached --quiet -- " .
+      $ret = ExecUtil::execute("$GIT_CMD rm --cached --quiet -- " .
                                "@newly_added_files", ignore_ret => 1);
       exit $ret if $ret;
     }
@@ -5311,7 +5298,7 @@ sub run {
           # state; if three files have conflicts and I try to reset some
           # file other than those three, the command is successful but it
           # spews warnings and gives a bad exit status
-          ExecUtil::execute("$git_cmd reset -q $revision --" .
+          ExecUtil::execute("$GIT_CMD reset -q $revision --" .
                             " @newly_added_files >/dev/null",
                             ignore_ret => 1);
         }
@@ -5320,22 +5307,22 @@ sub run {
         if ($revision ne "HEAD") {
           Util::push_debug(new_value => 0);
           ($temp_ret, $revision_sha1) =
-            ExecUtil::execute_captured("$git_cmd rev-parse --verify $revision",
+            ExecUtil::execute_captured("$GIT_CMD rev-parse --verify $revision",
                                        ignore_ret => 1);
           ($temp_ret, $head_sha1) =
-            ExecUtil::execute_captured("$git_cmd rev-parse --verify HEAD",
+            ExecUtil::execute_captured("$GIT_CMD rev-parse --verify HEAD",
                                        ignore_ret => 1);
           Util::pop_debug();
         }
 
-        $ret = ExecUtil::execute("$git_cmd reset --hard $revision",
+        $ret = ExecUtil::execute("$GIT_CMD reset --hard $revision",
                                  ignore_ret => 1);
         exit $ret if $ret;
 
         if ($revision ne "HEAD" && $revision_sha1 ne $head_sha1) {
           # Note, cannot git reset --soft HEAD, since HEAD has changed in
           # the above reset...
-          $ret = ExecUtil::execute("$git_cmd reset --soft HEAD\@{1}",
+          $ret = ExecUtil::execute("$GIT_CMD reset --soft HEAD\@{1}",
                                    ignore_ret => 1);
           exit $ret if $ret;
         }
@@ -5347,21 +5334,21 @@ sub run {
       if ($paths_specified) {
         if (@newly_added_files) {
           # See rant above about 'git reset is not quiet even when requested'
-          ExecUtil::execute("$git_cmd reset -q $revision --" .
+          ExecUtil::execute("$GIT_CMD reset -q $revision --" .
                             " @newly_added_files >/dev/null",
                             ignore_ret => 1);
         }
         if (@new_since_rev_files) {
           # Ugh, when --quiet doesn't actually mean "quiet".
           # (Reproduce with git-1.6.0.6 on incomplete merge handling testcase)
-          $ret = ExecUtil::execute("$git_cmd rm --quiet --force " .
+          $ret = ExecUtil::execute("$GIT_CMD rm --quiet --force " .
                                    "--ignore-unmatch -- @new_since_rev_files" .
                                    " > /dev/null",
                                    ignore_ret => 1);
           exit $ret if $ret;
         }
         if (@other_files) {
-          $ret = ExecUtil::execute("$git_cmd checkout $revision -- " .
+          $ret = ExecUtil::execute("$GIT_CMD checkout $revision -- " .
                                    "@other_files", ignore_ret => 1);
           exit $ret if $ret;
         }
@@ -5373,11 +5360,11 @@ sub run {
     #
     elsif ($self->{staged}) {
       if ($paths_specified) {
-        $ret = ExecUtil::execute("$git_cmd reset -q $revision -- @all_files",
+        $ret = ExecUtil::execute("$GIT_CMD reset -q $revision -- @all_files",
                                  ignore_ret => 1);
         exit $ret if $ret;
       } else {
-        $ret = ExecUtil::execute("$git_cmd read-tree $revision",
+        $ret = ExecUtil::execute("$GIT_CMD read-tree $revision",
                                  ignore_ret => 1);
         exit $ret if $ret;
       }
@@ -5389,7 +5376,7 @@ sub run {
     elsif ($self->{unstaged}) {
       if ($self->{just_recent_unstaged}) {
         die "Assertion failed: Paths not specified.\n" if (!$paths_specified);
-        $ret = ExecUtil::execute("$git_cmd checkout -- @all_files",
+        $ret = ExecUtil::execute("$GIT_CMD checkout -- @all_files",
                                  ignore_ret => 1);
         exit $ret if $ret;
       }
@@ -5415,7 +5402,7 @@ sub run {
             my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
             ($cf) = Util::reroot_paths__from_to_files($top_dir, $cur_dir, '.');
           }
-          $ret = ExecUtil::execute("$git_index $git_cmd checkout $revision " .
+          $ret = ExecUtil::execute("$git_index $GIT_CMD checkout $revision " .
                                    "-- $cf", ignore_ret => 1);
           exit $ret if $ret;
 
@@ -5445,11 +5432,11 @@ sub run {
 
     # Print out the (nearly) equivalent commands if the user asked for
     # debugging information
-    if ($debug) {
+    if ($DEBUG) {
       print "    >>Running: " .
-            "$git_cmd diff @diff_flags $self->{revs} ${marker}@files | ";
+            "$GIT_CMD diff @diff_flags $self->{revs} ${marker}@files | ";
       print "(cd $top_dir && " if ($top_dir ne $cur_dir);
-      print "$git_cmd apply @apply_flags -R";
+      print "$GIT_CMD apply @apply_flags -R";
       print ")" if ($top_dir ne $cur_dir);
       print "\n";
     }
@@ -5459,8 +5446,8 @@ sub run {
     # we have to run diff, slurp in its output, check if its nonempty,
     # and then only pipe that output back out to git apply if we have
     # an actual diff to revert.
-    if ($debug < 2) {
-      open(DIFF, "$git_cmd diff @diff_flags $self->{revs} ${marker}@files |");
+    if ($DEBUG < 2) {
+      open(DIFF, "$GIT_CMD diff @diff_flags $self->{revs} ${marker}@files |");
       my @output = <DIFF>;
       my $diff = join("", @output);
       # Listing unmerged paths doesn't count as nonempty
@@ -5471,7 +5458,7 @@ sub run {
 
       if ($diff) {
         chdir($top_dir) if $top_dir ne $cur_dir;
-        open(APPLY, "| $git_cmd apply @apply_flags -R");
+        open(APPLY, "| $GIT_CMD apply @apply_flags -R");
         print APPLY $diff;
         close(APPLY);
         chdir($cur_dir) if $top_dir ne $cur_dir;
@@ -5488,7 +5475,7 @@ sub run {
 package rm;
 @rm::ISA = qw(subcommand);
 INIT {
-  $command{rm} = {
+  $COMMAND{rm} = {
     extra => 1,
     section => 'modification',
     about => 'Remove files from subsequent commits and the working copy'
@@ -5555,7 +5542,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   return if (scalar(@ARGV) > 0 && $ARGV[0] eq "--");
   my $result = main::GetOptions("--help" => sub { $self->help() });
@@ -5571,7 +5557,7 @@ sub preprocess {
 package squash;
 @squash::ISA = qw(subcommand);
 INIT {
-  $command{squash} = {
+  $COMMAND{squash} = {
     new_command => 1,
     extra => 1,
     section => 'modification',
@@ -5616,7 +5602,6 @@ Options:
 
 sub preprocess {
   my $self = shift;
-  my $package_name = ref($self);
 
   my $since;
   my $result = main::GetOptions(
@@ -5628,8 +5613,8 @@ sub preprocess {
   if (!defined($since)) {
     my $branch = RepoUtil::current_branch();
     die "Aborting: No revision specified.\n" if !defined($branch);
-    $merge_remote = RepoUtil::get_config("branch.$branch.remote");
-    $merge_branch = RepoUtil::get_config("branch.$branch.merge");
+    my $merge_remote = RepoUtil::get_config("branch.$branch.remote");
+    my $merge_branch = RepoUtil::get_config("branch.$branch.merge");
     die "Aborting: No revision specified.\n" if !defined($merge_branch);
     $merge_branch =~ s#^refs/heads/##;
     $since = "$merge_remote/$merge_branch";
@@ -5642,28 +5627,28 @@ sub preprocess {
 
   # Get the sha1sum where HEAD points now, make sure HEAD is valid
   ($retval, $orig_head) =
-    ExecUtil::execute_captured("$git_cmd rev-parse HEAD", ignore_ret => 1);
+    ExecUtil::execute_captured("$GIT_CMD rev-parse HEAD", ignore_ret => 1);
   die "Aborting: You have no commits on HEAD.\n" if $retval != 0;
   chomp($orig_head);
   $self->{orig_head} = $orig_head;
 
   # Get the sha1sum where $since points now, make sure it is valid
   ($retval, $since_sha1sum) =
-    ExecUtil::execute_captured("$git_cmd rev-parse $self->{since}",
+    ExecUtil::execute_captured("$GIT_CMD rev-parse $self->{since}",
                                ignore_ret => 1);
   die "Invalid revision reference: $self->{since}\n" if $retval != 0;
   chomp($since_sha1sum);
 
   # Make sure user has no staged changes
-  my $output = `$git_cmd diff --cached --quiet`;
+  my $output = `$GIT_CMD diff --cached --quiet`;
   die "Aborting: You have staged changes; please commit them first.\n" if $?;
 
   # Ensure $self->{since} is an ancestor of HEAD
-  my $command = "$git_cmd rev-list HEAD..$self->{since} | wc -l";
+  my $command = "$GIT_CMD rev-list HEAD..$self->{since} | wc -l";
   my ($ret, $unique_to_since) = ExecUtil::execute_captured($command);
   die "Couldn't parse '$command' output '$unique_to_since'"
     unless ($unique_to_since =~ /^\s*([0-9]+)$/);
-  $need_commits = $1;
+  my $need_commits = $1;
   die "Aborting: $self->{since} is not an ancestor of HEAD.\n" if $need_commits;
   die "Aborting: There are no commits since $self->{since}.\n"
     if $orig_head eq $since_sha1sum;
@@ -5673,7 +5658,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   # Fill out a basic log message
   my ($fh, $filename) = main::tempfile();
@@ -5683,19 +5667,19 @@ sub run {
 
 EOF
   close($fh);
-  $ret = ExecUtil::execute("$git_cmd log --reverse --no-merges --pretty=format:" .
+  my $ret = ExecUtil::execute("$GIT_CMD log --reverse --no-merges --pretty=format:" .
             "'#commit %H%n#Author: %an <%ae>%n#Date:   %ad%n%n%s%n%n%b' " .
             " $self->{since}..$self->{orig_head} >> $filename");
   exit $ret if $ret;
 
   # Now, reset and commit
-  $ret = ExecUtil::execute("$git_cmd reset --soft $self->{since}");
+  $ret = ExecUtil::execute("$GIT_CMD reset --soft $self->{since}");
   exit $ret if $ret;
-  $ret = ExecUtil::execute("$git_cmd commit -F $filename --edit",
+  $ret = ExecUtil::execute("$GIT_CMD commit -F $filename --edit",
                            ignore_ret => 1);
 
   # Restore the branch pointer if the commit failed (e.g. empty log message)
-  ExecUtil::execute("$git_cmd reset --soft $self->{orig_head}") if $ret != 0;
+  ExecUtil::execute("$GIT_CMD reset --soft $self->{orig_head}") if $ret != 0;
 
   unlink($filename);
   return 0;
@@ -5707,7 +5691,7 @@ EOF
 package stage;
 @stage::ISA = qw(subcommand);
 INIT {
-  $command{stage} = {
+  $COMMAND{stage} = {
     new_command => 1,
     section => 'modification',
     about => 'Mark content in files as being ready for commit'
@@ -5775,10 +5759,9 @@ Options:
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$git_cmd add @ARGV", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD add @ARGV", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -5787,7 +5770,7 @@ sub run {
 package stash;
 @stash::ISA = qw(subcommand);
 INIT {
-  $command{stash} = {
+  $COMMAND{stash} = {
     section => 'timesavers',
     about => 'Save and revert local changes, or apply stashed changes',
     };
@@ -5971,9 +5954,9 @@ EOF
     } else {
       # Will need to compare arguments to existing stash descriptions...
       print "  >>Getting stash descriptions to compare to arguments:\n"
-        if $debug;
+        if $DEBUG;
       my ($retval, $output) =
-        ExecUtil::execute_captured("$eg_exec stash list --refs");
+        ExecUtil::execute_captured("$EG_EXEC stash list --refs");
       my @lines = split('\n', $output);
       my %refs;
       my %bad_refs;
@@ -6023,10 +6006,10 @@ sub run {
   @ARGV = Util::quote_args(@ARGV);
   if ($self->{subcommand} eq 'list') {
     my $output = "";
-    open($outfh, '>', \$output) ||
-      die "eg $package_name: cannot open \$outfh: $!";
+    open($OUTFH, '>', \$output) ||
+      die "eg $package_name: cannot open \$OUTFH: $!";
 
-    $ret = ExecUtil::execute("$git_cmd $package_name @ARGV", ignore_ret => 1);
+    $ret = ExecUtil::execute("$GIT_CMD $package_name @ARGV", ignore_ret => 1);
 
     my @lines = split('\n', $output);
     my $regex = 
@@ -6041,7 +6024,7 @@ sub run {
       }
     }
   } else {
-    $ret = ExecUtil::execute("$git_cmd $package_name @ARGV", ignore_ret => 1);
+    $ret = ExecUtil::execute("$GIT_CMD $package_name @ARGV", ignore_ret => 1);
   }
   return $ret;
 }
@@ -6052,11 +6035,11 @@ sub run {
 package status;
 @status::ISA = qw(subcommand);
 INIT {
-  $command{status} = {
+  $COMMAND{status} = {
     section => 'discovery',
     about => 'Summarize current changes'
     };
-  $alias{'st'} = "status";
+  $ALIAS{'st'} = "status";
 }
 
 sub new {
@@ -6175,7 +6158,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   -t STDOUT and $ENV{"GIT_PAGER_IN_USE"}=1;
   return $self->SUPER::run() if $self->{no_filter};
@@ -6183,7 +6165,7 @@ sub run {
   $self->{special_state} = RepoUtil::get_special_state($self->{git_dir});
 
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$git_cmd status @ARGV", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD status @ARGV", ignore_ret => 1);
 }
 
 sub postprocess {
@@ -6194,7 +6176,7 @@ sub postprocess {
   my $workaround_msg =
     "You'll need to use an older git or a newer eg or 'git status'.";
 
-  if ($debug == 2) {
+  if ($DEBUG == 2) {
     print "    >>(No commands to run, just data to print)<<\n";
     return;
   }
@@ -6233,6 +6215,7 @@ sub postprocess {
   while (@lines) {
     my $line = shift @lines;
     my $section = undef;
+    my $title;
 
     if ($line =~ m/^# On branch (.*)$/) {
       $branch = $1;
@@ -6297,7 +6280,7 @@ sub postprocess {
       if (defined($files{$section})) {
         push(@{$files{$section}{'file_list'}}, @section_files);
       } else {
-        $files{$section} = { title     => $title,
+        $files{$section} = { title     => $title, # may be undef
                              hint      => $hints,
                              file_list => \@section_files };
       }
@@ -6357,7 +6340,7 @@ sub postprocess {
     print "($line)\n";
   }
   my ($retval, $num_stashes) =
-      ExecUtil::execute_captured("$git_cmd stash list | wc -l");
+      ExecUtil::execute_captured("$GIT_CMD stash list | wc -l");
   chomp($num_stashes);
   if ($num_stashes > 0) {
     print "(You have $num_stashes stash(es).  Use 'eg stash list' to see them.)\n";
@@ -6368,8 +6351,8 @@ sub postprocess {
   if (defined $self->{special_state}) {
     my ($highlight, $reset) = ("", "");
     if (-t STDOUT) {
-      $highlight=`$git_cmd config --get-color color.status.header "red reverse"`;
-      $reset=`$git_cmd config --get-color "" "reset"`;
+      $highlight=`$GIT_CMD config --get-color color.status.header "red reverse"`;
+      $reset=`$GIT_CMD config --get-color "" "reset"`;
     }
 
     $notice .= "($highlight";
@@ -6421,12 +6404,12 @@ sub postprocess {
 package switch;
 @switch::ISA = qw(subcommand);
 INIT {
-  $command{switch} = {
+  $COMMAND{switch} = {
     new_command => 1,
     section => 'projects',
     about => 'Switch the working copy to another branch'
     };
-  $alias{'sw'} = "switch";
+  $ALIAS{'sw'} = "switch";
 }
 
 sub new {
@@ -6502,10 +6485,9 @@ EOF
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$git_cmd checkout @ARGV", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD checkout @ARGV", ignore_ret => 1);
 }
 
 ###########################################################################
@@ -6514,7 +6496,7 @@ sub run {
 package tag;
 @tag::ISA = qw(subcommand);
 INIT {
-  $command{tag} = {
+  $COMMAND{tag} = {
     unmodified_behavior => 1,
     extra => 1,
     section => 'modification',
@@ -6571,7 +6553,7 @@ Options:
 package track;
 @track::ISA = qw(subcommand);
 INIT {
-  $command{track} = {
+  $COMMAND{track} = {
     new_command => 1,
     extra => 1,
     section => 'projects',
@@ -6662,7 +6644,7 @@ sub preprocess {
 
     # Make sure the remote is a valid name
     Util::push_debug(new_value => 0);
-    $ret = ExecUtil::execute("$git_cmd remote | grep '^$remote\$' > /dev/null",
+    $ret = ExecUtil::execute("$GIT_CMD remote | grep '^$remote\$' > /dev/null",
                               ignore_ret => 1);
     die "Error: '$remote' is not a valid remote name.\n" .
         "(Use 'eg remote' to find valid remote names).\n" if $ret;
@@ -6693,7 +6675,6 @@ sub preprocess {
 
 sub run {
   my $self = shift;
-  my $package_name = ref($self);
 
   my ($ret, $output);
   my ($mode, $branch, $remote_branch, $remote) =
@@ -6709,12 +6690,12 @@ sub run {
 
     # Get the remote tracking flags
     ($ret, $output) = ExecUtil::execute_captured(
-      "$git_cmd config --get-regexp '^branch\.$branch\.(remote|merge)'",
+      "$GIT_CMD config --get-regexp '^branch\.$branch\.(remote|merge)'",
       ignore_ret => 1);
     chomp($output);
 
     # Exit early if we're in --translate mode
-    if ($debug == 2) {
+    if ($DEBUG == 2) {
       print "    >>(No more commands to run, " .
             "just output to parse and print)<<\n";
     }
@@ -6746,22 +6727,22 @@ sub run {
 
   } elsif ($mode eq "set") {
     $ret =  ExecUtil::execute(
-       "$git_cmd config branch.$branch.remote $remote", ignore_ret => 1);
+       "$GIT_CMD config branch.$branch.remote $remote", ignore_ret => 1);
     $ret |= ExecUtil::execute(
-       "$git_cmd config branch.$branch.merge $remote_branch", ignore_ret => 1);
+       "$GIT_CMD config branch.$branch.merge $remote_branch", ignore_ret => 1);
 
-    if (!$ret && $debug < 2) {
+    if (!$ret && $DEBUG < 2) {
       print "$branch now set to track " .
             "branch $remote_branch of remote $remote.\n";
     }
     return $ret;
   } elsif ($mode eq "unset") {
     ExecUtil::execute(
-       "$git_cmd config --unset branch.$branch.remote", ignore_ret => 1);
+       "$GIT_CMD config --unset branch.$branch.remote", ignore_ret => 1);
     ExecUtil::execute(
-       "$git_cmd config --unset branch.$branch.merge", ignore_ret => 1);
+       "$GIT_CMD config --unset branch.$branch.merge", ignore_ret => 1);
 
-    if ($debug < 2) {
+    if ($DEBUG < 2) {
       print "$branch no longer tracks any remote branch.\n";
     }
     return 0;
@@ -6774,7 +6755,7 @@ sub run {
 package unstage;
 @unstage::ISA = qw(revert);
 INIT {
-  $command{unstage} = {
+  $COMMAND{unstage} = {
     new_command => 1,
     extra => 1,
     section => 'modification',
@@ -6834,7 +6815,7 @@ Examples:
 package update;
 @update::ISA = qw(subcommand);
 INIT {
-  $command{update} = {
+  $COMMAND{update} = {
     new_command => 1,
     extra => 1,
     section => 'compatibility',
@@ -6931,7 +6912,7 @@ EOF
     exit 1;
   }
 
-  if ($debug) {
+  if ($DEBUG) {
     print "  >>Commands to determine where to update from:\n";
   }
 
@@ -6949,7 +6930,7 @@ EOF
     # otherwise throw an error
     my ($quoted_repo) = Util::quote_args("$self->{repository}");
     my ($ret, $output) = 
-      ExecUtil::execute_captured("$git_cmd ls-remote -h $quoted_repo");
+      ExecUtil::execute_captured("$GIT_CMD ls-remote -h $quoted_repo");
     if ($ret == 0) {
       my @remote_refs = split('\n', $output);
       if (@remote_refs == 1) {
@@ -6981,13 +6962,13 @@ sub run {
   # Get value to set ORIG_HEAD to (unless we are on the initial commit)
   Util::push_debug(new_value => 0);
   my ($retval, $orig_sha1sum) = 
-    ExecUtil::execute_captured("$git_cmd rev-parse HEAD", ignore_ret => 1);
+    ExecUtil::execute_captured("$GIT_CMD rev-parse HEAD", ignore_ret => 1);
   my $has_orig_head = ($retval == 0);
   Util::pop_debug();
 
   # Do the fetch && reset, making sure to set ORIG_HEAD
   my ($ret, $output) = 
-    ExecUtil::execute_captured("$git_cmd fetch $self->{repository} " .
+    ExecUtil::execute_captured("$GIT_CMD fetch $self->{repository} " .
                                "$self->{merge_branch}:$self->{local_branch}",
                                ignore_ret => 1);
   if ($output =~ /\[rejected\].*\(non fast forward\)/) {
@@ -6997,14 +6978,14 @@ sub run {
     die "Error updating (output = $output); please report the bug, and\n" .
         "try using 'eg pull' instead.\n";
   } else {
-    $ret = ExecUtil::execute_captured("$git_cmd reset --hard " .
+    $ret = ExecUtil::execute_captured("$GIT_CMD reset --hard " .
                                       "$self->{local_branch}");
-    if ($has_orig_head && $debug < 2) {
+    if ($has_orig_head && $DEBUG < 2) {
       open(ORIG_HEAD, "> $self->{git_dir}/ORIG_HEAD");
       print ORIG_HEAD $output;
       close(ORIG_HEAD);
     }
-    print "Updated the current branch.\n" if ($debug < 2);
+    print "Updated the current branch.\n" if ($DEBUG < 2);
   }
   return $ret;
 }
@@ -7025,7 +7006,7 @@ sub new {
   bless($self, $class);
 }
 
-# Override help because we don't want to both definining $command{help}
+# Override help because we don't want to both definining $COMMAND{help}
 sub help {
   my $self = shift;
 
@@ -7046,8 +7027,8 @@ Description:
 sub run {
   my $self = shift;
 
-  print "eg version $version\n" if $debug < 2;
-  print "    >>(We can print the eg version directly)<<\n" if $debug == 2;
+  print "eg version $VERSION\n" if $DEBUG < 2;
+  print "    >>(We can print the eg version directly)<<\n" if $DEBUG == 2;
   return $self->SUPER::run();
 }
 
@@ -7067,14 +7048,14 @@ sub run {
 package ExecUtil;
 
 # _execute_impl is the guts for execute() and execute_captured()
-sub _execute_impl {
+sub _execute_impl ($@) {
   my ($command, @opts) = @_;
   my ($ret, $output);
   my %options = ( ignore_ret => 0, capture_output => 0, @opts );
 
-  if ($debug) {
+  if ($DEBUG) {
     print "    >>Running: '$command'<<\n";
-    return $options{capture_output} ? (0, "") : 0 if $debug == 2;
+    return $options{capture_output} ? (0, "") : 0 if $DEBUG == 2;
   }
 
   #
@@ -7088,10 +7069,10 @@ sub _execute_impl {
       $output = `$command 2>&1`;
     }
     $ret = $?;
-  } elsif (defined $outfh) {
+  } elsif (defined $OUTFH) {
     open(OUTPUT, "$command 2>&1 |");
     while (<OUTPUT>) {
-      print $outfh $_;
+      print $OUTFH $_;
     }
     close(OUTPUT);
     $ret = $?;
@@ -7113,7 +7094,7 @@ sub _execute_impl {
     else {
       $ret = ($ret >> 8);
       if (! $options{ignore_ret}) {
-        print STDERR "eg: failed ($ret)\n" if $debug;
+        print STDERR "eg: failed ($ret)\n" if $DEBUG;
         if ($ret >> 8 != 0) {
           print STDERR "eg: command ($command) failed\n";
         }
@@ -7129,13 +7110,13 @@ sub _execute_impl {
 
 # executes a command, capturing its output (both STDOUT and STDERR),
 # returning both the return value and the output
-sub execute_captured {
+sub execute_captured ($@) {
   my ($command, @options) = @_;
   return _execute_impl($command, capture_output => 1, @options);
 }
 
 # executes a command, returning its chomped output
-sub output {
+sub output ($@) {
   my ($command, @options) = @_;
   my ($ret, $output) = execute_captured($command, @options);
   die "Failed executing '$command'!\n" if $ret != 0;
@@ -7144,7 +7125,7 @@ sub output {
 }
 
 # executes a command (output not captured), returning its return value
-sub execute {
+sub execute ($@) {
   my ($command, @options) = @_;
   return _execute_impl($command, @options);
 }
@@ -7155,9 +7136,9 @@ sub execute {
 package RepoUtil;
 
 # current_branch: Get the currently active branch
-sub current_branch {
-  Util::push_debug(new_value => $debug ? 1 : 0);
-  my ($ret, $output) = ExecUtil::execute_captured("$git_cmd symbolic-ref HEAD",
+sub current_branch () {
+  Util::push_debug(new_value => $DEBUG ? 1 : 0);
+  my ($ret, $output) = ExecUtil::execute_captured("$GIT_CMD symbolic-ref HEAD",
                                                   ignore_ret => 1);
   Util::pop_debug();
 
@@ -7167,15 +7148,15 @@ sub current_branch {
   return $output;
 }
 
-sub git_dir {
+sub git_dir (%) {
   my $options = {force => 0, @_};  # Hashref initialized as we're told
   if (!$options->{force}) {
-    return $gitdir if ($gitdir);
+    return $GITDIR if ($GITDIR);
   }
 
   Util::push_debug(new_value => 0);
   my ($ret, $output) = 
-    ExecUtil::execute_captured("$git_cmd rev-parse --git-dir", ignore_ret => 1);
+    ExecUtil::execute_captured("$GIT_CMD rev-parse --git-dir", ignore_ret => 1);
   Util::pop_debug();
 
   return undef if $ret != 0;
@@ -7183,67 +7164,67 @@ sub git_dir {
   return $output;
 }
 
-sub get_dirs {
+sub get_dirs () {
   my $options = {force => 0, @_};  # Hashref initialized as we're told
 
-  if ($curdir && !$options->{force}) {
-    return ($curdir, $topdir, $gitdir);
+  if ($CURDIR && !$options->{force}) {
+    return ($CURDIR, $TOPDIR, $GITDIR);
   }
 
   Util::push_debug(new_value => 0);
 
-  $curdir = main::getcwd();
+  $CURDIR = main::getcwd();
 
   # Get the toplevel repository directory
-  $topdir = $curdir;
+  $TOPDIR = $CURDIR;
   my ($ret, $rel_dir) = 
-    ExecUtil::execute_captured("$git_cmd rev-parse --show-prefix",
+    ExecUtil::execute_captured("$GIT_CMD rev-parse --show-prefix",
                                ignore_ret => 1);
   chomp($rel_dir);
   if ($ret != 0) {
-    $topdir = undef;
+    $TOPDIR = undef;
   } elsif ($rel_dir) {
     $rel_dir =~ s#/$##;  # Remove trailing slash
-    $topdir =~ s#\Q$rel_dir\E$##;
-    $topdir =~ s#/$##;  # Remove trailing slash
+    $TOPDIR =~ s#\Q$rel_dir\E$##;
+    $TOPDIR =~ s#/$##;  # Remove trailing slash
   }
 
-  $gitdir = git_dir(force => $options->{force});
+  $GITDIR = git_dir(force => $options->{force});
 
   Util::pop_debug();
 
-  return ($curdir, $topdir, $gitdir);
+  return ($CURDIR, $TOPDIR, $GITDIR);
 }
 
-sub initial_commit {
-  my @output = `$git_cmd rev-parse --verify -q HEAD`;
+sub initial_commit () {
+  my @output = `$GIT_CMD rev-parse --verify -q HEAD`;
   return $?;
 }
 
-sub valid_ref {
+sub valid_ref ($) {
   my ($ref) = @_;
   my ($ret, $sha1sum) =
-    ExecUtil::execute_captured("$git_cmd rev-parse --verify -q $ref",
+    ExecUtil::execute_captured("$GIT_CMD rev-parse --verify -q $ref",
                                ignore_ret => 1);
   return $ret == 0;
 }
 
-sub files_modified() {
-  my @output = `$git_cmd status -a`;
+sub files_modified () {
+  my @output = `$GIT_CMD status -a`;
   return $? == 0;
 }
 
-sub merge_branches {
+sub merge_branches () {
   my $git_dir = RepoUtil::git_dir();
   my $active_branch = RepoUtil::current_branch() || 'HEAD';
   my @merge_branches =
-    `cat "$git_dir/MERGE_HEAD" | $git_cmd name-rev --stdin`;
+    `cat "$git_dir/MERGE_HEAD" | $GIT_CMD name-rev --stdin`;
   @merge_branches = map { /^[0-9a-f]* \((.*)\)$/ && $1 } @merge_branches;
   my @all_merge_branches = ($active_branch, @merge_branches);
   return @all_merge_branches;
 }
 
-sub get_special_state {
+sub get_special_state ($) {
   my $git_dir = shift;
 
   my $special_state;
@@ -7267,32 +7248,33 @@ sub get_special_state {
   return $special_state;
 }
 
-sub get_config {
+sub get_config ($) {
   my $key = shift;
-  my ($ret, $output) = ExecUtil::execute_captured("$git_cmd config --get $key",
+  my ($ret, $output) = ExecUtil::execute_captured("$GIT_CMD config --get $key",
                                                   ignore_ret => 1);
   return undef if $ret != 0;
   chomp($output);
   return $output;
 }
 
-sub set_config {
+sub set_config ($$) {
   my $key = shift;
   my $value = shift;
-  ExecUtil::execute("$git_cmd config $key \"$value\"");
+  ExecUtil::execute("$GIT_CMD config $key \"$value\"");
 }
 
-sub unset_config {
+# XXX unused?
+sub unset_config ($) {
   my $key = shift;
-  ExecUtil::execute("$git_cmd config --unset $key", ignore_ret => 1);
+  ExecUtil::execute("$GIT_CMD config --unset $key", ignore_ret => 1);
 }
 
-sub get_only_branch {
+sub get_only_branch ($$) {
   my $repository = shift;
   my $check_type = shift;
 
-  if ($debug == 2) {
-    print "    >>Running: '$git_cmd ls-remote -h $repository'<<\n";
+  if ($DEBUG == 2) {
+    print "    >>Running: '$GIT_CMD ls-remote -h $repository'<<\n";
     return;
   }
 
@@ -7300,7 +7282,7 @@ sub get_only_branch {
   # otherwise throw an error
   my ($quoted_repo) = Util::quote_args("$repository");
   my ($ret, $output) =
-    ExecUtil::execute_captured("$git_cmd ls-remote -h $quoted_repo",
+    ExecUtil::execute_captured("$GIT_CMD ls-remote -h $quoted_repo",
                                capture_stdout_only => 1, ignore_ret => 1);
   die "Aborting: Could not determine remote branches " .
       "from repository '$repository'\n" if $ret != 0;
@@ -7333,18 +7315,18 @@ EOF
   return $remote_branches[0];
 }
 
-sub get_default_push_pull_repository {
+sub get_default_push_pull_repository () {
   my $branch = current_branch();
 
   if ($branch) {
-    my $default_remote = `$git_cmd config --get branch.$branch.remote`;
+    my $default_remote = `$GIT_CMD config --get branch.$branch.remote`;
     if ($default_remote) {
       chomp($default_remote);
       return $default_remote;
     }
   }
 
-  my @output = `$git_cmd config --get-regexp remote\.origin\.*`;
+  my @output = `$GIT_CMD config --get-regexp remote\.origin\.*`;
   if (@output) {
     return "origin";
   } else {
@@ -7357,7 +7339,7 @@ EOF
   }
 }
 
-sub print_new_unknowns {
+sub print_new_unknowns ($) {
   my ($new_unknowns) = @_;
   my $num = scalar(@$new_unknowns);
   print STDERR "New unknown files";
@@ -7375,7 +7357,7 @@ sub print_new_unknowns {
 }
 
 # Error messages spewed by commit with non-clean working copies
-sub commit_error_message_checks {
+sub commit_error_message_checks ($$$$) {
   my ($commit_type, $check_for, $status, $new_unknown) = @_;
 
   if ($check_for->{unmerged_changes} && $status->{has_unmerged_changes}) {
@@ -7428,7 +7410,7 @@ EOF
 }
 
 # Error messages spewed by push, publish for non-clean working copies
-sub push_error_message_checks {
+sub push_error_message_checks ($$$$) {
   my ($clean_check_type, $check_for, $status, $new_unknown) = @_;
 
   if ($check_for->{unmerged_changes} && $status->{has_unmerged_changes}) {
@@ -7469,25 +7451,27 @@ EOF
   }
 }
 
-sub commit_push_checks {
-  my ($clean_check_type, $check_for) = @_;
+# XXX called with 0 args or 2 args
+sub commit_push_checks (;$$) {
+  my $clean_check_type = shift;
+  my $check_for = shift || {};
   my %status;
 
   # Determine some useful directories
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
 
   # Save debug mode, print out commands used up front
-  if ($debug) {
+  if ($DEBUG) {
     Util::push_debug(new_value => 0);
     if ($clean_check_type) {
       print "    >>Commands to gather data for pre-$clean_check_type sanity checks:\n";
     } else {
       print "    >>Commands to gather data for sanity checks:\n";
     }
-    print "        $git_cmd status\n";
-    print "        $git_cmd ls-files --unmerged\n";
-    print "        $git_cmd symbolic-ref HEAD\n" if $check_for->{no_branch};
-    print "        cd $top_dir && $git_cmd ls-files --exclude-standard --others --directory --no-empty-directory\n";
+    print "        $GIT_CMD status\n";
+    print "        $GIT_CMD ls-files --unmerged\n";
+    print "        $GIT_CMD symbolic-ref HEAD\n" if $check_for->{no_branch};
+    print "        cd $top_dir && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory\n";
   } else {
     Util::push_debug(new_value => 0);
   }
@@ -7495,9 +7479,9 @@ sub commit_push_checks {
   #
   # Determine which types of changes are present
   #
-  my ($ret, $output) = ExecUtil::execute_captured("$eg_exec status",
+  my ($ret, $output) = ExecUtil::execute_captured("$EG_EXEC status",
                                                   ignore_ret => 1);
-  my @unmerged_files = `$git_cmd ls-files --unmerged`;
+  my @unmerged_files = `$GIT_CMD ls-files --unmerged`;
   $status{has_new_unknown_files} = ($output =~ /^Newly created unknown files:$/m);
   $status{has_unstaged_changes}  = ($output =~ /^Changed but not updated/m);
   $status{has_staged_changes}    = ($output =~ /^Changes ready to be commit/m);
@@ -7510,7 +7494,7 @@ sub commit_push_checks {
   #
   # Determine which unknown files are "newly created"
   #
-  my @new_unknown = `(cd "$top_dir" && $git_cmd ls-files --exclude-standard --others --directory --no-empty-directory)`;
+  my @new_unknown = `(cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory)`;
   chomp(@new_unknown);
   if ($check_for->{unknown} && $status{has_new_unknown_files} &&
       -f "$git_dir/info/ignored-unknown") {
@@ -7525,7 +7509,7 @@ sub commit_push_checks {
   Util::pop_debug();
 
   if ($check_for->{no_branch}) {
-    my $rc = system('$git_cmd symbolic-ref -q HEAD >/dev/null');
+    my $rc = system('$GIT_CMD symbolic-ref -q HEAD >/dev/null');
     $status{has_no_branch} = $rc >> 8;
   }
 
@@ -7548,20 +7532,20 @@ sub commit_push_checks {
   return \%status;
 }
 
-sub record_ignored_unknowns {
+sub record_ignored_unknowns () {
   # Determine some useful directories
   my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
 
   mkdir "$git_dir/info" unless -d "$git_dir/info";
   open(OUTPUT, "> $git_dir/info/ignored-unknown");
-  my @unknown_files = `cd "$top_dir" && $git_cmd ls-files --exclude-standard --others --directory --no-empty-directory`;
+  my @unknown_files = `cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory`;
   foreach my $file (@unknown_files) {
     print OUTPUT $file;
   }
   close(OUTPUT);
 }
 
-sub parse_args {
+sub parse_args ($@) {
   my $multi_args = shift;
   my (@args) = @_;
 
@@ -7640,7 +7624,7 @@ sub parse_args {
   return (\@opts, \@revs, \@files);
 }
 
-sub get_revert_info {
+sub get_revert_info ($@) {
   my ($revision, @quoted_files) = @_;
 
   my $marker = "";
@@ -7665,9 +7649,9 @@ sub get_revert_info {
     my $ref2 = shift;
     my (@files, @lines);
     if (defined $ref2) {
-      @lines = `$git_cmd diff-tree -r $ref1 $ref2 $marker @quoted_files`;
+      @lines = `$GIT_CMD diff-tree -r $ref1 $ref2 $marker @quoted_files`;
     } else {
-      @lines = `$git_cmd diff-index --cached $ref1 $marker @quoted_files`;
+      @lines = `$GIT_CMD diff-index --cached $ref1 $marker @quoted_files`;
     }
     foreach my $line (@lines) {
       # Check for newly added files (not previously tracked but now staged)
@@ -7721,7 +7705,7 @@ sub get_revert_info {
 package Util;
 
 # Return items in @$lista but not in @$listb
-sub difference {
+sub difference ($$) {
   my ($lista, $listb) = @_;
   my %count;
 
@@ -7732,7 +7716,7 @@ sub difference {
 }
 
 # Return items in both @$lista and in @$listb
-sub intersect {
+sub intersect ($$) {
   my ($lista, $listb) = @_;
   my %original;
   my @both = ();
@@ -7744,7 +7728,7 @@ sub intersect {
 }
 
 # Return items in either @$lista or @$listb
-sub union {
+sub union ($$) {
   my ($lista, $listb) = @_;
   my %either;
 
@@ -7755,7 +7739,7 @@ sub union {
 }
 
 # Returns whether @$list contains $item
-sub contains {
+sub contains ($$) {
   my ($list, $item) = @_;
   my $found = 0;
   foreach my $elem (@$list) {
@@ -7768,14 +7752,14 @@ sub contains {
   return $found;
 }
 
-sub uniquify_list {
+sub uniquify_list (@) {
   my @list = @_;
   my %unique;
   @unique{@list} = @list;
   return keys %unique;
 }
 
-sub split_ssh_repository {
+sub split_ssh_repository ($) {
   my ($repository) = @_;
   my ($user, $machine, $port, $path);
   if ($repository =~ m#^ssh://((?:.*?@)?)([^/:]*)(?::(\d+))?(.*)$#) {
@@ -7793,7 +7777,7 @@ sub split_ssh_repository {
   return ($user, $machine, $port, $path);
 }
 
-sub quote_args {
+sub quote_args (@) {
   my @args = @_;
 
   # Quote arguments with special characters so that when we
@@ -7822,14 +7806,14 @@ sub quote_args {
 # Have git's rev-parse command parse @args and decide which part is files,
 # which is options, and which are revisions.  Further, have git translate
 # revisions into full 40-character hexadecimal commit ids.
-sub git_rev_parse {
+sub git_rev_parse (@) {
   my @args = @_;
 
   Util::push_debug(new_value => 0);
 
   my @quoted_args = Util::quote_args(@args);
   my ($ret, $output) = 
-    ExecUtil::execute_captured("$git_cmd rev-parse @quoted_args",
+    ExecUtil::execute_captured("$GIT_CMD rev-parse @quoted_args",
                                ignore_ret => 1);
   if ($ret != 0) {
     $output =~ /^(fatal:.*)$/m   && print STDERR "$1\n";
@@ -7837,11 +7821,11 @@ sub git_rev_parse {
     exit 1;
   }
   my @opts  =
-    split('\n', `$git_cmd rev-parse --no-revs --flags    @quoted_args`);
+    split('\n', `$GIT_CMD rev-parse --no-revs --flags    @quoted_args`);
   my @revs  =
-    split('\n', `$git_cmd rev-parse --revs-only          @quoted_args`);
+    split('\n', `$GIT_CMD rev-parse --revs-only          @quoted_args`);
   my @files =
-    split('\n', `$git_cmd rev-parse --no-revs --no-flags @quoted_args`);
+    split('\n', `$GIT_CMD rev-parse --no-revs --no-flags @quoted_args`);
 
   # Translate sha1sums back to human specified version of revisions.  Note that
   # something like "REV1...REV2" is translated into "SHA1 SHA2 ^SHA3", so one
@@ -7868,7 +7852,7 @@ sub git_rev_parse {
 #     reroot_paths__from_to_files("/tmp/junk", "/tmp", ('bar', '../foo'))
 #   would return
 #     ('junk/bar', 'foo')
-sub reroot_paths__from_to_files {
+sub reroot_paths__from_to_files ($$@) {
   my ($from, $to, @files) = @_;
   $from =~ s#/*$#/#;   # Make sure $from ends with exactly 1 slash
   $to   =~ s#/*$#/#;   # Make sure $to   ends with exactly 1 slash
@@ -7903,19 +7887,19 @@ sub reroot_paths__from_to_files {
 
 {
 my @debug_values;
-sub push_debug {
+sub push_debug (@) {
   my @opts = @_;
   my %options = ( @opts );
   die "Called without new_value!" if !defined($options{new_value});
 
-  my $old_value = $debug;
-  push(@debug_values, $debug);
-  $debug = $options{new_value};
+  my $old_value = $DEBUG;
+  push(@debug_values, $DEBUG);
+  $DEBUG = $options{new_value};
   return $old_value;
 }
 
-sub pop_debug {
-  $debug = pop @debug_values;
+sub pop_debug () {
+  $DEBUG = pop @debug_values;
 }
 }
 
@@ -7930,9 +7914,9 @@ sub pop_debug {
 
 package main;
 
-sub launch {
+sub launch ($) {
   my $job=shift;
-  $job = $alias{$job} || $job;
+  $job = $ALIAS{$job} || $job;
   my $orig_job = $job;
   $job =~ s/-/_/;  # Packages must have underscores, commands often have dashes
 
@@ -7946,9 +7930,9 @@ sub launch {
   if ($action->can("preprocess")) {
     # Do not skip commands normally executed during the preprocess stage,
     # since they just gather data.
-    Util::push_debug(new_value => $debug ? 1 : 0);
+    Util::push_debug(new_value => $DEBUG ? 1 : 0);
 
-    print ">>Stage: Preprocess<<\n" if $debug;
+    print ">>Stage: Preprocess<<\n" if $DEBUG;
     $action->preprocess();
 
     Util::pop_debug();
@@ -7956,34 +7940,35 @@ sub launch {
 
   # run & postprocess
   if (!$action->can("postprocess")) {
-    print ">>Stage: Run<<\n" if $debug;
+    print ">>Stage: Run<<\n" if $DEBUG;
     $ret = $action->run();
   } else {
     my $output = "";
-    open($outfh, '>', \$output) || die "eg $job: cannot open \$outfh: $!";
-    print ">>Stage: Run<<\n" if $debug;
+    open($OUTFH, '>', \$output) || die "eg $job: cannot open \$OUTFH: $!";
+    print ">>Stage: Run<<\n" if $DEBUG;
     $ret = $action->run();
-    print ">>Stage: Postprocess<<\n" if $debug;
+    print ">>Stage: Postprocess<<\n" if $DEBUG;
     $action->postprocess($output);
   }
 
   # wrapup
   if ($action->can("wrapup")) {
-    print ">>Stage: Wrapup<<\n" if $debug;
+    print ">>Stage: Wrapup<<\n" if $DEBUG;
     $action->wrapup();
   }
 
+  $ret = 0 unless ($ret);
   exit $ret;
 }
 
-sub version {
+sub version () {
   my $version_obj = "version"->new();
   $version_obj->run();
   exit 0;
 }
 
 # User gave invalid input; print an error_message, then show command usage
-sub help {
+sub help (;$) {
   my $error_message = shift;
   my %extra_args;
 
@@ -8002,7 +7987,7 @@ sub help {
   $help_obj->run();
 }
 
-sub main {
+sub main () {
   #
   # Get any global options 
   #
@@ -8012,15 +7997,15 @@ sub main {
   my $record_arg   = sub { push(@global_args, "--$_[0]"); };
   my $record_args  = sub { push(@global_args, "--$_[0]=$_[1]"); };
   my $result=GetOptions(
-               "--debug"     => sub { $debug = 1 },
+               "--debug"     => sub { $DEBUG = 1 },
                "--help"      => sub { help()     },
-               "--translate" => sub { $debug = 2 },
+               "--translate" => sub { $DEBUG = 2 },
                "--version"   => sub { version()  },
                "exec-path:s" => sub { $_[1] ? &$record_args(@_)
                                             : &$record_arg(@_); },
                "c:s"         => sub { push(@global_args, "-c", $_[1]); },
-               "paginate|p"  => sub { $use_pager = 1; &$record_arg(@_)  },
-               "no-pager"    => sub { $use_pager = 0; &$record_arg(@_)  },
+               "paginate|p"  => sub { $USE_PAGER = 1; &$record_arg(@_)  },
+               "no-pager"    => sub { $USE_PAGER = 0; &$record_arg(@_)  },
                "bare"        => sub { &$record_arg(@_)  },
                "git-dir=s"   => sub { &$record_args(@_) },
                "work-tree=s" => sub { &$record_args(@_) },
@@ -8028,8 +8013,8 @@ sub main {
                         );
   # Make sure all global args are passed to eg subprocesses as well...
   @global_args = Util::quote_args(@global_args);
-  $git_cmd .= " @global_args";
-  $eg_exec .= " @global_args" if @global_args;
+  $GIT_CMD .= " @global_args";
+  $EG_EXEC .= " @global_args" if @global_args;
 
   #
   # Fix the environment, if needed (eg testsuite invokes eg via 'git', but
@@ -8043,7 +8028,7 @@ sub main {
   }
 
   # Sanity check the arguments
-  exit ExecUtil::execute($git_cmd) if $git_cmd =~ m#--exec-path$#;
+  exit ExecUtil::execute($GIT_CMD) if $GIT_CMD =~ m#--exec-path$#;
   die "eg: Error parsing arguments. (Try 'eg help')\n" if !$result;
   die "eg: No subcommand specified. (Try 'eg help')\n" if @ARGV < 1;
   die "eg: Invalid argument '$ARGV[0]'. (Try 'eg help')\n"

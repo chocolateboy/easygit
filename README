@@ -14,9 +14,8 @@ To Msysgit users [From Dan Fabulich]:
   the command-line, but a script called "git.cmd".  Out of the box,
   "eg" can't find this script.
 
-  It's easy to update eg 0.99 to support a non-standard git executable
-  (for example: my $git_cmd = "git.cmd"), but that'll get you in
-  trouble...
+  It's easy to update eg to support a non-standard git executable (for
+  example: my $GIT_CMD = "git.cmd"), but that'll get you in trouble...
 
   2) ... because Perl's backtick (`) operator won't correctly detect
   the return code of git in that case; it'll think that git.cmd always
