@@ -7210,7 +7210,7 @@ sub valid_ref ($) {
 }
 
 sub files_modified () {
-  my @output = `$GIT_CMD status -a`;
+  my @output = `$GIT_CMD commit --dry-run -a`;
   return $? == 0;
 }
 
