@@ -1,4 +1,6 @@
-Jump to the end of the document if you just want to run tests.
+Basic steps to run the tests can be found in the HACKING file one
+directory up from where this file is location; this file merely documents
+additional information about the tests and what is needed to run them.
 
 This directory holds many test scripts for EasyGit.  Almost all of
 these tests were taken from git.git, and are run by making a symlink
@@ -26,22 +28,11 @@ git.git.
   the front of your path.  This is also a good way to get a new enough
   version of git.
 
-* You need git version >= (maybe even ==) eg version to pass the tests.
+* You need a matching git version to pass the tests.
 
   Since eg just calls through to git for most of its behavior, and this
   test directory contains the comprehensive testsuite from git.git, you
   need a version of git with all the appropriate features and bugfixes
-  to pass the tests.  To find the precise minimum git version, run
-    eg log -1 --grep="branch 'git/v"
+  to pass the tests.  Just take the version of eg, stripping any '.dev'
+  from it, and that's the version of git that you need to test with.
 
-=== Steps to run ===
-
-* Clone & build appropriate version of git.git (no need to install)
-
-* Use the git (and test-*) binaries from git.git.  Any easy way to do so:
-    $ export GIT_EXEC_PATH=/path/to/git.git/clone
-    $ export PATH=$GIT_EXEC_PATH:$PATH
-    $ export GITPERLLIB=$GIT_EXEC_PATH/perl/blib/lib
-    $ export GIT_TEMPLATE_DIR=$GIT_EXEC_PATH/templates/blt
-
-* Run 'make', or perhaps 'make -j2'

@@ -5,11 +5,13 @@ A couple basic rules about the maintainence of eg:
      replaced.  Sorry.  Also, I turn down some good ideas.  And some good
      ideas that I turn down I suddenly change my mind on a year later.
 
+     Okay, so...maybe years at a time.  :-(
+
   1) At any given time, all the tests should pass *if* running with
      corresponding git and eg versions (run 'eg --version' to check).  To
      run the tests:
 
-     # Put a matching version of git in your PATH; see end of README file
+     # Put a matching version of git in your PATH
      cd /path/to/clone/of/git
      export PATH=`pwd`/bin-wrappers:$PATH
 
@@ -17,7 +19,7 @@ A couple basic rules about the maintainence of eg:
      cd /path/to/clone/of/eg
      export PATH=`pwd`:$PATH
 
-     # See t/README for more details; note that the tests
+     # Run tests (see t/README & t/README-git.git for more details)
      cd t/
      make -j2
 
