@@ -129,7 +129,7 @@ test_expect_success 'denyNonFastforwards trumps --force' '
 	test "$victim_orig" = "$victim_head"
 '
 
-test_expect_success 'push --all excludes remote tracking hierarchy' '
+test_expect_success 'push --all excludes remote-tracking hierarchy' '
 	mkdir parent &&
 	(
 	    cd parent &&
@@ -193,7 +193,7 @@ test_expect_success 'pushing explicit refspecs respects forcing' '
 	        +refs/heads/master:refs/heads/master
 	) &&
 	parent_head=$(cd parent && git rev-parse --verify master) &&
-	child_head=$(cd parent && git rev-parse --verify master) &&
+	child_head=$(cd child && git rev-parse --verify master) &&
 	test "$parent_head" = "$child_head"
 '
 
@@ -213,7 +213,7 @@ test_expect_success 'pushing wildcard refspecs respects forcing' '
 	        "+refs/heads/*:refs/heads/*"
 	) &&
 	parent_head=$(cd parent && git rev-parse --verify master) &&
-	child_head=$(cd parent && git rev-parse --verify master) &&
+	child_head=$(cd child && git rev-parse --verify master) &&
 	test "$parent_head" = "$child_head"
 '
 

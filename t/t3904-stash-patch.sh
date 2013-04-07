@@ -20,7 +20,7 @@ test_expect_success PERL 'setup' '
 # note: bar sorts before dir, so the first 'n' is always to skip 'bar'
 
 test_expect_success PERL 'saying "n" does nothing' '
-	set_state dir/foo work index
+	set_state dir/foo work index &&
 	(echo n; echo n) | test_must_fail git stash save -p &&
 	verify_state dir/foo work index &&
 	verify_saved_state bar
@@ -40,6 +40,18 @@ test_expect_success PERL 'git stash -p --no-keep-index' '
 	set_state dir/foo work index &&
 	set_state bar bar_work bar_index &&
 	(echo n; echo y) | git stash save -p --no-keep-index &&
+	verify_state dir/foo head head &&
+	verify_state bar bar_work dummy &&
+	git reset --hard &&
+	git stash apply --index &&
+	verify_state dir/foo work index &&
+	verify_state bar dummy bar_index
+'
+
+test_expect_success PERL 'git stash --no-keep-index -p' '
+	set_state dir/foo work index &&
+	set_state bar bar_work bar_index &&
+	(echo n; echo y) | git stash save --no-keep-index -p &&
 	verify_state dir/foo head head &&
 	verify_state bar bar_work dummy &&
 	git reset --hard &&

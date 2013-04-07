@@ -37,15 +37,24 @@ test_expect_success 'setup' "
 	git diff-tree -p -C master binary >C.diff &&
 
 	git diff-tree -p --binary master binary >BF.diff &&
-	git diff-tree -p --binary -C master binary >CF.diff
+	git diff-tree -p --binary -C master binary >CF.diff &&
+
+	git diff-tree -p --full-index master binary >B-index.diff &&
+	git diff-tree -p -C --full-index master binary >C-index.diff &&
+
+	git init other-repo &&
+	(cd other-repo &&
+	 git fetch .. master &&
+	 git reset --hard FETCH_HEAD
+	)
 "
 
 test_expect_success 'stat binary diff -- should not fail.' \
-	'git checkout master
+	'git checkout master &&
 	 git apply --stat --summary B.diff'
 
 test_expect_success 'stat binary diff (copy) -- should not fail.' \
-	'git checkout master
+	'git checkout master &&
 	 git apply --stat --summary C.diff'
 
 test_expect_success 'check binary diff -- should fail.' \
@@ -69,11 +78,11 @@ test_expect_success \
 '
 
 test_expect_success 'check binary diff with replacement.' \
-	'git checkout master
+	'git checkout master &&
 	 git apply --check --allow-binary-replacement BF.diff'
 
 test_expect_success 'check binary diff with replacement (copy).' \
-	'git checkout master
+	'git checkout master &&
 	 git apply --check --allow-binary-replacement CF.diff'
 
 # Now we start applying them.
@@ -99,6 +108,22 @@ test_expect_success 'apply binary diff (copy) -- should fail.' \
 test_expect_success 'apply binary diff (copy) -- should fail.' \
 	'do_reset &&
 	 test_must_fail git apply --index C.diff'
+
+test_expect_success 'apply binary diff with full-index' '
+	do_reset &&
+	git apply B-index.diff
+'
+
+test_expect_success 'apply binary diff with full-index (copy)' '
+	do_reset &&
+	git apply C-index.diff
+'
+
+test_expect_success 'apply full-index binary diff in new repo' '
+	(cd other-repo &&
+	 do_reset &&
+	 test_must_fail git apply ../B-index.diff)
+'
 
 test_expect_success 'apply binary diff without replacement.' \
 	'do_reset &&

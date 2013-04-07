@@ -59,7 +59,29 @@ do
 			echo ${HC}file:4:foo mmap bar_mmap
 			echo ${HC}file:5:foo_mmap bar mmap baz
 		} >expected &&
-		git grep -n -w -e mmap $H >actual &&
+		git -c grep.linenumber=false grep -n -w -e mmap $H >actual &&
+		test_cmp expected actual
+	'
+
+	test_expect_success "grep -w $L" '
+		{
+			echo ${HC}file:1:foo mmap bar
+			echo ${HC}file:3:foo_mmap bar mmap
+			echo ${HC}file:4:foo mmap bar_mmap
+			echo ${HC}file:5:foo_mmap bar mmap baz
+		} >expected &&
+		git -c grep.linenumber=true grep -w -e mmap $H >actual &&
+		test_cmp expected actual
+	'
+
+	test_expect_success "grep -w $L" '
+		{
+			echo ${HC}file:foo mmap bar
+			echo ${HC}file:foo_mmap bar mmap
+			echo ${HC}file:foo mmap bar_mmap
+			echo ${HC}file:foo_mmap bar mmap baz
+		} >expected &&
+		git -c grep.linenumber=true grep --no-line-number -w -e mmap $H >actual &&
 		test_cmp expected actual
 	'
 
@@ -182,6 +204,24 @@ do
 		test_cmp expected actual
 	'
 
+	test_expect_success "grep --max-depth 0 -- . t $L" '
+		{
+			echo ${HC}t/v:1:vvv
+			echo ${HC}v:1:vvv
+		} >expected &&
+		git grep --max-depth 0 -n -e vvv $H -- . t >actual &&
+		test_cmp expected actual
+	'
+
+	test_expect_success "grep --max-depth 0 -- t . $L" '
+		{
+			echo ${HC}t/v:1:vvv
+			echo ${HC}v:1:vvv
+		} >expected &&
+		git grep --max-depth 0 -n -e vvv $H -- t . >actual &&
+		test_cmp expected actual
+	'
+
 done
 
 cat >expected <<EOF
@@ -285,6 +325,11 @@ test_expect_success 'grep -f, ignore empty lines' '
 	test_cmp expected actual
 '
 
+test_expect_success 'grep -f, ignore empty lines, read patterns from stdin' '
+	git grep -f - <patterns >actual &&
+	test_cmp expected actual
+'
+
 cat >expected <<EOF
 y:y yy
 --
@@ -324,8 +369,13 @@ test_expect_success 'log grep setup' '
 
 	echo a >>file &&
 	test_tick &&
-	git commit -a -m "third"
+	git commit -a -m "third" &&
 
+	echo a >>file &&
+	test_tick &&
+	GIT_AUTHOR_NAME="Night Fall" \
+	GIT_AUTHOR_EMAIL="nitfol@frobozz.com" \
+	git commit -a -m "fourth"
 '
 
 test_expect_success 'log grep (1)' '
@@ -369,6 +419,28 @@ test_expect_success 'log --grep --author implicitly uses all-match' '
 	# author matches only initial and third
 	git log --author="A U Thor" --grep=s --grep=l --format=%s >actual &&
 	echo initial >expect &&
+	test_cmp expect actual
+'
+
+test_expect_success 'log with multiple --author uses union' '
+	git log --author="Thor" --author="Aster" --format=%s >actual &&
+	{
+	    echo third && echo second && echo initial
+	} >expect &&
+	test_cmp expect actual
+'
+
+test_expect_success 'log with --grep and multiple --author uses all-match' '
+	git log --author="Thor" --author="Night" --grep=i --format=%s >actual &&
+	{
+	    echo third && echo initial
+	} >expect &&
+	test_cmp expect actual
+'
+
+test_expect_success 'log with --grep and multiple --author uses all-match' '
+	git log --author="Thor" --author="Night" --grep=q --format=%s >actual &&
+	>expect &&
 	test_cmp expect actual
 '
 
@@ -452,7 +524,7 @@ test_expect_success 'outside of git repository' '
 		echo file1:hello &&
 		echo sub/file2:world
 	} >non/expect.full &&
-	echo file2:world >non/expect.sub
+	echo file2:world >non/expect.sub &&
 	(
 		GIT_CEILING_DIRECTORIES="$(pwd)/non/git" &&
 		export GIT_CEILING_DIRECTORIES &&
@@ -478,7 +550,7 @@ test_expect_success 'inside git repository but with --no-index' '
 		echo sub/file2:world
 	} >is/expect.full &&
 	: >is/expect.empty &&
-	echo file2:world >is/expect.sub
+	echo file2:world >is/expect.sub &&
 	(
 		cd is/git &&
 		git init &&

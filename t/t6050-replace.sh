@@ -53,7 +53,7 @@ test_expect_success 'set up buggy branch' '
      echo "line 12" >> hello &&
      echo "line 13" >> hello &&
      add_and_commit_file hello "2 more lines" &&
-     HASH6=$(git rev-parse --verify HEAD)
+     HASH6=$(git rev-parse --verify HEAD) &&
      echo "line 14" >> hello &&
      echo "line 15" >> hello &&
      echo "line 16" >> hello &&
@@ -205,9 +205,16 @@ test_expect_success 'fetch branch with replacement' '
      git branch tofetch $HASH6 &&
      (
 	  cd clone_dir &&
-	  git fetch origin refs/heads/tofetch:refs/heads/parallel3
-	  git log --pretty=oneline parallel3 | grep $PARA3
-	  git show $PARA3 | grep "A U Thor"
+	  git fetch origin refs/heads/tofetch:refs/heads/parallel3 &&
+	  git log --pretty=oneline parallel3 > output.txt &&
+	  ! grep $PARA3 output.txt &&
+	  git show $PARA3 > para3.txt &&
+	  grep "A U Thor" para3.txt &&
+	  git fetch origin "refs/replace/*:refs/replace/*" &&
+	  git log --pretty=oneline parallel3 > output.txt &&
+	  grep $PARA3 output.txt &&
+	  git show $PARA3 > para3.txt &&
+	  grep "O Thor" para3.txt
      )
 '
 

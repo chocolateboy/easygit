@@ -72,7 +72,17 @@ test_expect_success 'revert after renaming branch' '
 
 '
 
-test_expect_success 'revert forbidden on dirty working tree' '
+test_expect_success 'cherry-pick on stat-dirty working tree' '
+	git clone . copy &&
+	(
+		cd copy &&
+		git checkout initial &&
+		test-chmtime +40 oops &&
+		git cherry-pick added
+	)
+'
+
+test_expect_success C_LOCALE_OUTPUT 'revert forbidden on dirty working tree' '
 
 	echo content >extra_file &&
 	git add extra_file &&

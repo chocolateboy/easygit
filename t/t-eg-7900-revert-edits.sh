@@ -18,12 +18,12 @@ test_expect_success 'initial_commit-1' '
 	test 0 = $(git ls-files | wc -l)
 '
 
-test_expect_code 128 'initial_commit-2' '
-	$revert there
+test_expect_success 'initial_commit-2' '
+	test_expect_code 128 $revert there
 '
 
-test_expect_code 1 'initial_commit-3' '
-	$revert
+test_expect_success 'initial_commit-3' '
+	test_expect_code 1 $revert
 '
 
 test_expect_success 'setup' '
@@ -140,8 +140,8 @@ test_expect_success 'clean yet again' '
 	eg revert --since HEAD --staged
 '
 
-test_expect_code 1 'plain revert' '
-	$revert
+test_expect_success 'plain revert' '
+	test_expect_code 1 $revert
 '
 
 test_expect_success 'setup_merge_conflict' '
@@ -169,12 +169,12 @@ test_expect_success 'setup_merge_conflict' '
 	git checkout master
 '
 
-test_expect_code 1 'merge conflict' '
-	git merge other
+test_expect_success 'merge conflict' '
+	test_expect_code 1 git merge other
 '
 
-test_expect_code 1 'incomplete merge requires revision' '
-	$revert c
+test_expect_success 'incomplete merge requires revision' '
+	test_expect_code 1 $revert c
 '
 
 test_expect_success 'incomplete merge handling' '
@@ -192,10 +192,10 @@ test_expect_success 'incomplete merge handling' '
 	git diff --quiet other conflict
 '
 
-test_expect_code 1 'cleanup and restart merge' '
+test_expect_success 'cleanup and restart merge' '
 	git reset --hard HEAD &&
 	git ls-files --others | xargs rm &&
-	git merge other
+	test_expect_code 1 git merge other
 '
 
 test_expect_success 'undoing merge' '

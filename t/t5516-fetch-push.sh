@@ -665,7 +665,7 @@ test_expect_success 'push into aliased refs (consistent)' '
 '
 
 test_expect_success 'push into aliased refs (inconsistent)' '
-	mk_test heads/master &&	
+	mk_test heads/master &&
 	rm -rf child1 &&
 	git clone --bare testrepo child1 &&
 	mk_child child2 &&

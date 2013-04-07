@@ -17,19 +17,21 @@ test_expect_success 'setup' '
 	cat >expected <<-\EOF &&
 	100644 77f0ba1734ed79d12881f81b36ee134de6a3327b 0	init.t
 	100644 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 0	sub/added
+	100644 e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 0	subsub/added
 	EOF
 	cat >expected.swt <<-\EOF &&
 	H init.t
 	H sub/added
+	H subsub/added
 	EOF
 
 	git ls-files -o --exclude-standard > .git/info/ignored-unknown
 
 	test_commit init &&
 	echo modified >>init.t &&
-	mkdir sub &&
-	touch sub/added &&
-	git add init.t sub/added &&
+	mkdir sub subsub &&
+	touch sub/added subsub/added &&
+	git add init.t sub/added subsub/added &&
 	git commit -m "modified and added" &&
 	git tag top &&
 	git rm sub/added &&
@@ -49,7 +51,7 @@ test_expect_success 'read-tree without .git/info/sparse-checkout' '
 '
 
 test_expect_success 'read-tree with .git/info/sparse-checkout but disabled' '
-	echo >.git/info/sparse-checkout
+	echo >.git/info/sparse-checkout &&
 	git read-tree -m -u HEAD &&
 	git ls-files -t >result &&
 	test_cmp expected.swt result &&
@@ -83,6 +85,7 @@ test_expect_success 'match directories with trailing slash' '
 	cat >expected.swt-noinit <<-\EOF &&
 	S init.t
 	H sub/added
+	S subsub/added
 	EOF
 
 	echo sub/ > .git/info/sparse-checkout &&
@@ -93,12 +96,20 @@ test_expect_success 'match directories with trailing slash' '
 	test -f sub/added
 '
 
-test_expect_failure 'match directories without trailing slash' '
-	echo init.t >.git/info/sparse-checkout &&
+test_expect_success 'match directories without trailing slash' '
 	echo sub >>.git/info/sparse-checkout &&
 	git read-tree -m -u HEAD &&
 	git ls-files -t >result &&
-	test_cmp expected.swt result &&
+	test_cmp expected.swt-noinit result &&
+	test ! -f init.t &&
+	test -f sub/added
+'
+
+test_expect_success 'match directory pattern' '
+	echo "s?b" >>.git/info/sparse-checkout &&
+	git read-tree -m -u HEAD &&
+	git ls-files -t >result &&
+	test_cmp expected.swt-noinit result &&
 	test ! -f init.t &&
 	test -f sub/added
 '
@@ -107,6 +118,7 @@ test_expect_success 'checkout area changes' '
 	cat >expected.swt-nosub <<-\EOF &&
 	H init.t
 	S sub/added
+	S subsub/added
 	EOF
 
 	echo init.t >.git/info/sparse-checkout &&

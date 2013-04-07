@@ -107,16 +107,18 @@ test_expect_success 'remove remote' '
 )
 '
 
-test_expect_success 'remove remote protects non-remote branches' '
+test_expect_success 'remove remote protects local branches' '
 (
 	cd test &&
 	{ cat >expect1 <<EOF
-Note: A non-remote branch was not removed; to delete it, use:
+Note: A branch outside the refs/remotes/ hierarchy was not removed;
+to delete it, use:
   git branch -d master
 EOF
 	} &&
 	{ cat >expect2 <<EOF
-Note: Non-remote branches were not removed; to delete them, use:
+Note: Some branches outside the refs/remotes/ hierarchy were not removed;
+to delete them, use:
   git branch -d foobranch
   git branch -d master
 EOF
@@ -300,6 +302,85 @@ test_expect_success 'add --mirror && prune' '
 	 git remote prune origin &&
 	 test_must_fail git rev-parse --verify refs/heads/side2 &&
 	 git rev-parse --verify refs/heads/side)
+'
+
+test_expect_success 'add --mirror=fetch' '
+	mkdir mirror-fetch &&
+	git init mirror-fetch/parent &&
+	(cd mirror-fetch/parent &&
+	 test_commit one) &&
+	git init --bare mirror-fetch/child &&
+	(cd mirror-fetch/child &&
+	 git remote add --mirror=fetch -f parent ../parent)
+'
+
+test_expect_success 'fetch mirrors act as mirrors during fetch' '
+	(cd mirror-fetch/parent &&
+	 git branch new &&
+	 git branch -m master renamed
+	) &&
+	(cd mirror-fetch/child &&
+	 git fetch parent &&
+	 git rev-parse --verify refs/heads/new &&
+	 git rev-parse --verify refs/heads/renamed
+	)
+'
+
+test_expect_success 'fetch mirrors can prune' '
+	(cd mirror-fetch/child &&
+	 git remote prune parent &&
+	 test_must_fail git rev-parse --verify refs/heads/master
+	)
+'
+
+test_expect_success 'fetch mirrors do not act as mirrors during push' '
+	(cd mirror-fetch/parent &&
+	 git checkout HEAD^0
+	) &&
+	(cd mirror-fetch/child &&
+	 git branch -m renamed renamed2 &&
+         git symbolic-ref HEAD refs/heads/new &&
+	 git push parent new:new
+	) &&
+	(cd mirror-fetch/parent &&
+	 git rev-parse --verify renamed &&
+	 test_must_fail git rev-parse --verify refs/heads/renamed2
+	)
+'
+
+test_expect_success 'add --mirror=push' '
+	mkdir mirror-push &&
+	git init --bare mirror-push/public &&
+	git init mirror-push/private &&
+	(cd mirror-push/private &&
+	 test_commit one &&
+	 git remote add --mirror=push public ../public
+	)
+'
+
+test_expect_success 'push mirrors act as mirrors during push' '
+	(cd mirror-push/private &&
+	 git branch new &&
+	 git branch -m master renamed &&
+	 git push public
+	) &&
+	(cd mirror-push/private &&
+	 git rev-parse --verify refs/heads/new &&
+	 git rev-parse --verify refs/heads/renamed &&
+	 test_must_fail git rev-parse --verify refs/heads/master
+	)
+'
+
+test_expect_success 'push mirrors do not act as mirrors during fetch' '
+	(cd mirror-push/public &&
+	 git branch -m renamed renamed2 &&
+	 git symbolic-ref HEAD refs/heads/renamed2
+	) &&
+	(cd mirror-push/private &&
+	 git fetch public &&
+	 git rev-parse --verify refs/heads/renamed &&
+	 test_must_fail git rev-parse --verify refs/heads/renamed2
+	)
 '
 
 test_expect_success 'add alt && prune' '

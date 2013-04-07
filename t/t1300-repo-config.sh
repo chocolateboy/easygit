@@ -289,6 +289,14 @@ test_expect_success 'working --list' \
 	'git config --list > output && cmp output expect'
 
 cat > expect << EOF
+EOF
+
+test_expect_success '--list without repo produces empty output' '
+	git --git-dir=nonexistent config --list >output &&
+	test_cmp expect output
+'
+
+cat > expect << EOF
 beta.noindent sillyValue
 nextsection.nonewline wow2 for me
 EOF
@@ -701,13 +709,13 @@ cat >expect <<\EOF
 	trailingtilde = foo~
 EOF
 
-test_expect_success 'set --path' '
+test_expect_success NOT_MINGW 'set --path' '
 	git config --path path.home "~/" &&
 	git config --path path.normal "/dev/null" &&
 	git config --path path.trailingtilde "foo~" &&
 	test_cmp expect .git/config'
 
-if test "${HOME+set}"
+if test_have_prereq NOT_MINGW && test "${HOME+set}"
 then
 	test_set_prereq HOMEVAR
 fi
@@ -730,7 +738,7 @@ cat >expect <<\EOF
 foo~
 EOF
 
-test_expect_success 'get --path copes with unset $HOME' '
+test_expect_success NOT_MINGW 'get --path copes with unset $HOME' '
 	(
 		unset HOME;
 		test_must_fail git config --get --path path.home \
@@ -836,6 +844,27 @@ test_expect_success SYMLINKS 'symlinked configuration' '
 
 '
 
+test_expect_success 'nonexistent configuration' '
+	(
+		GIT_CONFIG=doesnotexist &&
+		export GIT_CONFIG &&
+		test_must_fail git config --list &&
+		test_must_fail git config test.xyzzy
+	)
+'
+
+test_expect_success SYMLINKS 'symlink to nonexistent configuration' '
+	ln -s doesnotexist linktonada &&
+	ln -s linktonada linktolinktonada &&
+	(
+		GIT_CONFIG=linktonada &&
+		export GIT_CONFIG &&
+		test_must_fail git config --list &&
+		GIT_CONFIG=linktolinktonada &&
+		test_must_fail git config --list
+	)
+'
+
 test_expect_success 'check split_cmdline return' "
 	git config alias.split-cmdline-fix 'echo \"' &&
 	test_must_fail git split-cmdline-fix &&
@@ -847,11 +876,25 @@ test_expect_success 'check split_cmdline return' "
 	"
 
 test_expect_success 'git -c "key=value" support' '
-	test "z$(git -c name=value config name)" = zvalue &&
 	test "z$(git -c core.name=value config core.name)" = zvalue &&
-	test "z$(git -c CamelCase=value config camelcase)" = zvalue &&
-	test "z$(git -c flag config --bool flag)" = ztrue &&
-	test_must_fail git -c core.name=value config name
+	test "z$(git -c foo.CamelCase=value config foo.camelcase)" = zvalue &&
+	test "z$(git -c foo.flag config --bool foo.flag)" = ztrue &&
+	test_must_fail git -c name=value config core.name
+'
+
+test_expect_success 'key sanity-checking' '
+	test_must_fail git config foo=bar &&
+	test_must_fail git config foo=.bar &&
+	test_must_fail git config foo.ba=r &&
+	test_must_fail git config foo.1bar &&
+	test_must_fail git config foo."ba
+				z".bar &&
+	test_must_fail git config . false &&
+	test_must_fail git config .foo false &&
+	test_must_fail git config foo. false &&
+	test_must_fail git config .foo. false &&
+	git config foo.bar true &&
+	git config foo."ba =z".bar false
 '
 
 test_done

@@ -59,33 +59,25 @@ TERM=dumb
 export LANG LC_ALL PAGER TERM TZ
 EDITOR=:
 unset VISUAL
-unset GIT_EDITOR
-unset AUTHOR_DATE
-unset AUTHOR_EMAIL
-unset AUTHOR_NAME
-unset COMMIT_AUTHOR_EMAIL
-unset COMMIT_AUTHOR_NAME
 unset EMAIL
-unset GIT_ALTERNATE_OBJECT_DIRECTORIES
-unset GIT_AUTHOR_DATE
+unset $(perl -e '
+	my @env = keys %ENV;
+	my $ok = join("|", qw(
+		TRACE
+		DEBUG
+		USE_LOOKUP
+		TEST
+		.*_TEST
+		PROVE
+		VALGRIND
+	));
+	my @vars = grep(/^GIT_/ && !/^GIT_($ok)/o, @env);
+	print join("\n", @vars);
+')
 GIT_AUTHOR_EMAIL=author@example.com
 GIT_AUTHOR_NAME='A U Thor'
-unset GIT_COMMITTER_DATE
 GIT_COMMITTER_EMAIL=committer@example.com
 GIT_COMMITTER_NAME='C O Mitter'
-unset GIT_DIFF_OPTS
-unset GIT_DIR
-unset GIT_WORK_TREE
-unset GIT_EXTERNAL_DIFF
-unset GIT_INDEX_FILE
-unset GIT_OBJECT_DIRECTORY
-unset GIT_CEILING_DIRECTORIES
-unset SHA1_FILE_DIRECTORIES
-unset SHA1_FILE_DIRECTORY
-unset GIT_NOTES_REF
-unset GIT_NOTES_DISPLAY_REF
-unset GIT_NOTES_REWRITE_REF
-unset GIT_NOTES_REWRITE_MODE
 GIT_MERGE_VERBOSITY=5
 export GIT_MERGE_VERBOSITY
 export GIT_AUTHOR_EMAIL GIT_AUTHOR_NAME
@@ -112,6 +104,9 @@ esac
 # A regexp to match 5 and 40 hexdigits
 _x05='[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
 _x40="$_x05$_x05$_x05$_x05$_x05$_x05$_x05$_x05"
+
+# Zero SHA-1
+_z40=0000000000000000000000000000000000000000
 
 # Each test should start with something like this, after copyright notices:
 #
@@ -254,14 +249,51 @@ test_set_editor () {
 }
 
 test_decode_color () {
-	sed	-e 's/.\[1m/<WHITE>/g' \
-		-e 's/.\[31m/<RED>/g' \
-		-e 's/.\[32m/<GREEN>/g' \
-		-e 's/.\[33m/<YELLOW>/g' \
-		-e 's/.\[34m/<BLUE>/g' \
-		-e 's/.\[35m/<MAGENTA>/g' \
-		-e 's/.\[36m/<CYAN>/g' \
-		-e 's/.\[m/<RESET>/g'
+	awk '
+		function name(n) {
+			if (n == 0) return "RESET";
+			if (n == 1) return "BOLD";
+			if (n == 30) return "BLACK";
+			if (n == 31) return "RED";
+			if (n == 32) return "GREEN";
+			if (n == 33) return "YELLOW";
+			if (n == 34) return "BLUE";
+			if (n == 35) return "MAGENTA";
+			if (n == 36) return "CYAN";
+			if (n == 37) return "WHITE";
+			if (n == 40) return "BLACK";
+			if (n == 41) return "BRED";
+			if (n == 42) return "BGREEN";
+			if (n == 43) return "BYELLOW";
+			if (n == 44) return "BBLUE";
+			if (n == 45) return "BMAGENTA";
+			if (n == 46) return "BCYAN";
+			if (n == 47) return "BWHITE";
+		}
+		{
+			while (match($0, /\033\[[0-9;]*m/) != 0) {
+				printf "%s<", substr($0, 1, RSTART-1);
+				codes = substr($0, RSTART+2, RLENGTH-3);
+				if (length(codes) == 0)
+					printf "%s", name(0)
+				else {
+					n = split(codes, ary, ";");
+					sep = "";
+					for (i = 1; i <= n; i++) {
+						printf "%s%s", sep, name(ary[i]);
+						sep = ";"
+					}
+				}
+				printf ">";
+				$0 = substr($0, RSTART + RLENGTH, length($0) - RSTART - RLENGTH + 1);
+			}
+			print
+		}
+	'
+}
+
+nul_to_q () {
+	perl -pe 'y/\000/Q/'
 }
 
 q_to_nul () {
@@ -282,6 +314,17 @@ append_cr () {
 
 remove_cr () {
 	tr '\015' Q | sed -e 's/Q$//'
+}
+
+# In some bourne shell implementations, the "unset" builtin returns
+# nonzero status when a variable to be unset was not set in the first
+# place.
+#
+# Use sane_unset when that should not be considered an error.
+
+sane_unset () {
+	unset "$@"
+	return 0
 }
 
 test_tick () {
@@ -308,7 +351,7 @@ test_commit () {
 	echo "${3-$1}" > "$file" &&
 	git add "$file" &&
 	test_tick &&
-	git commit -m "$1" &&
+	git commit --staged -m "$1" &&
 	git tag "$1"
 }
 
@@ -378,6 +421,15 @@ test_have_prereq () {
 	test $total_prereq = $ok_prereq
 }
 
+test_declared_prereq () {
+	case ",$test_prereq," in
+	*,$1,*)
+		return 0
+		;;
+	esac
+	return 1
+}
+
 # You are not expected to call test_ok_ and test_failure_ directly, use
 # the text_expect_* functions instead.
 
@@ -430,17 +482,17 @@ test_skip () {
 			break
 		esac
 	done
-	if test -z "$to_skip" && test -n "$prereq" &&
-	   ! test_have_prereq "$prereq"
+	if test -z "$to_skip" && test -n "$test_prereq" &&
+	   ! test_have_prereq "$test_prereq"
 	then
 		to_skip=t
 	fi
 	case "$to_skip" in
 	t)
 		of_prereq=
-		if test "$missing_prereq" != "$prereq"
+		if test "$missing_prereq" != "$test_prereq"
 		then
-			of_prereq=" of $prereq"
+			of_prereq=" of $test_prereq"
 		fi
 
 		say_color skip >&3 "skipping test: $@"
@@ -454,9 +506,10 @@ test_skip () {
 }
 
 test_expect_failure () {
-	test "$#" = 3 && { prereq=$1; shift; } || prereq=
+	test "$#" = 3 && { test_prereq=$1; shift; } || test_prereq=
 	test "$#" = 2 ||
 	error "bug in the test script: not 2 or 3 parameters to test-expect-failure"
+	export test_prereq
 	if ! test_skip "$@"
 	then
 		say >&3 "checking known breakage: $2"
@@ -472,9 +525,10 @@ test_expect_failure () {
 }
 
 test_expect_success () {
-	test "$#" = 3 && { prereq=$1; shift; } || prereq=
+	test "$#" = 3 && { test_prereq=$1; shift; } || test_prereq=
 	test "$#" = 2 ||
 	error "bug in the test script: not 2 or 3 parameters to test-expect-success"
+	export test_prereq
 	if ! test_skip "$@"
 	then
 		say >&3 "expecting success: $2"
@@ -482,24 +536,6 @@ test_expect_success () {
 		if [ "$?" = 0 -a "$eval_ret" = 0 ]
 		then
 			test_ok_ "$1"
-		else
-			test_failure_ "$@"
-		fi
-	fi
-	echo >&3 ""
-}
-
-test_expect_code () {
-	test "$#" = 4 && { prereq=$1; shift; } || prereq=
-	test "$#" = 3 ||
-	error "bug in the test script: not 3 or 4 parameters to test-expect-code"
-	if ! test_skip "$@"
-	then
-		say >&3 "expecting exit code $1: $3"
-		test_run_ "$3"
-		if [ "$?" = 0 -a "$eval_ret" = "$1" ]
-		then
-			test_ok_ "$2"
 		else
 			test_failure_ "$@"
 		fi
@@ -516,11 +552,12 @@ test_expect_code () {
 # Usage: test_external description command arguments...
 # Example: test_external 'Perl API' perl ../path/to/test.pl
 test_external () {
-	test "$#" = 4 && { prereq=$1; shift; } || prereq=
+	test "$#" = 4 && { test_prereq=$1; shift; } || test_prereq=
 	test "$#" = 3 ||
 	error >&5 "bug in the test script: not 3 or 4 parameters to test_external"
 	descr="$1"
 	shift
+	export test_prereq
 	if ! test_skip "$descr" "$@"
 	then
 		# Announce the script to reduce confusion about the
@@ -621,6 +658,28 @@ test_path_is_missing () {
 	fi
 }
 
+# test_line_count checks that a file has the number of lines it
+# ought to. For example:
+#
+#	test_expect_success 'produce exactly one line of output' '
+#		do something >output &&
+#		test_line_count = 1 output
+#	'
+#
+# is like "test $(wc -l <output) = 1" except that it passes the
+# output through when the number of lines is wrong.
+
+test_line_count () {
+	if test $# != 3
+	then
+		error "bug in the test script: not 3 parameters to test_line_count"
+	elif ! test $(wc -l <"$3") "$1" "$2"
+	then
+		echo "test_line_count: line count for $3 !$1 $2"
+		cat "$3"
+		return 1
+	fi
+}
 
 # This is not among top-level (test_expect_success | test_expect_failure)
 # but is a prefix that can be used in the test script, like:
@@ -672,6 +731,28 @@ test_might_fail () {
 		return 1
 	fi
 	return 0
+}
+
+# Similar to test_must_fail and test_might_fail, but check that a
+# given command exited with a given exit code. Meant to be used as:
+#
+#	test_expect_success 'Merge with d/f conflicts' '
+#		test_expect_code 1 git merge "merge msg" B master
+#	'
+
+test_expect_code () {
+	want_code=$1
+	shift
+	"$@"
+	exit_code=$?
+	if test $exit_code = $want_code
+	then
+		echo >&2 "test_expect_code: command exited with $exit_code: $*"
+		return 0
+	else
+		echo >&2 "test_expect_code: command exited with $exit_code, we wanted $want_code $*"
+		return 1
+	fi
 }
 
 # test_cmp is a helper function to compare actual and expected output.
@@ -800,8 +881,8 @@ then
 fi
 unset GIT_CONFIG
 GIT_CONFIG_NOSYSTEM=1
-GIT_CONFIG_NOGLOBAL=1
-export PATH GIT_CONFIG_NOSYSTEM GIT_CONFIG_NOGLOBAL
+GIT_ATTR_NOSYSTEM=1
+export PATH GIT_CONFIG_NOSYSTEM GIT_ATTR_NOSYSTEM
 
 . "$TEST_DIRECTORY"/GIT-BUILD-OPTIONS
 
@@ -829,13 +910,13 @@ rm -fr "$test" || {
 	exit 1
 }
 
+HOME="$TRASH_DIRECTORY"
+export HOME
+
 test_create_repo "$test"
 # Use -P to resolve symlinks in our working directory so that the cwd
 # in subprocesses like git equals our $PWD (for pathname comparisons).
 cd -P "$test" || exit 1
-
-HOME=$(pwd)
-export HOME
 
 this_test=${0##*/}
 this_test=${this_test%%-*}
@@ -884,16 +965,34 @@ case $(uname -s) in
 	# no POSIX permissions
 	# backslashes in pathspec are converted to '/'
 	# exec does not inherit the PID
+	test_set_prereq MINGW
+	test_set_prereq SED_STRIPS_CR
+	;;
+*CYGWIN*)
+	test_set_prereq POSIXPERM
+	test_set_prereq EXECKEEPSPID
+	test_set_prereq NOT_MINGW
+	test_set_prereq SED_STRIPS_CR
 	;;
 *)
 	test_set_prereq POSIXPERM
 	test_set_prereq BSLASHPSPEC
 	test_set_prereq EXECKEEPSPID
+	test_set_prereq NOT_MINGW
 	;;
 esac
 
 test -z "$NO_PERL" && test_set_prereq PERL
 test -z "$NO_PYTHON" && test_set_prereq PYTHON
+
+# Can we rely on git's output in the C locale?
+if test -n "$GETTEXT_POISON"
+then
+	GIT_GETTEXT_POISON=YesPlease
+	export GIT_GETTEXT_POISON
+else
+	test_set_prereq C_LOCALE_OUTPUT
+fi
 
 # test whether the filesystem supports symbolic links
 ln -s x y 2>/dev/null && test -h y 2>/dev/null && test_set_prereq SYMLINKS

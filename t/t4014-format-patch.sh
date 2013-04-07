@@ -6,30 +6,36 @@
 test_description='various format-patch tests'
 
 . ./test-lib.sh
+. "$TEST_DIRECTORY"/lib-terminal.sh
 
 test_expect_success setup '
 
 	for i in 1 2 3 4 5 6 7 8 9 10; do echo "$i"; done >file &&
 	cat file >elif &&
 	git add file elif &&
+	test_tick &&
 	git commit -m Initial &&
 	git checkout -b side &&
 
 	for i in 1 2 5 6 A B C 7 8 9 10; do echo "$i"; done >file &&
 	test_chmod +x elif &&
+	test_tick &&
 	git commit --staged -m "Side changes #1" &&
 
 	for i in D E F; do echo "$i"; done >>file &&
 	git update-index file &&
+	test_tick &&
 	git commit -m "Side changes #2" &&
 	git tag C2 &&
 
 	for i in 5 6 1 2 3 A 4 B C 7 8 9 10 D E F; do echo "$i"; done >file &&
 	git update-index file &&
+	test_tick &&
 	git commit -m "Side changes #3 with \\n backslash-n in it." &&
 
 	git checkout master &&
 	git diff-tree -p C2 | git apply --index &&
+	test_tick &&
 	git commit -m "Master accepts moral equivalent of #2"
 
 '
@@ -49,6 +55,22 @@ test_expect_success "format-patch --ignore-if-in-upstream" '
 	cnt=`grep "^From " patch1 | wc -l` &&
 	test $cnt = 2
 
+'
+
+test_expect_success "format-patch doesn't consider merge commits" '
+
+	git checkout -b slave master &&
+	echo "Another line" >>file &&
+	test_tick &&
+	git commit -am "Slave change #1" &&
+	echo "Yet another line" >>file &&
+	test_tick &&
+	git commit -am "Slave change #2" &&
+	git checkout -b merger master &&
+	test_tick &&
+	git merge --no-ff slave &&
+	cnt=`git format-patch -3 --stdout | grep "^From " | wc -l` &&
+	test $cnt = 3
 '
 
 test_expect_success "format-patch result applies" '
@@ -592,7 +614,7 @@ echo "fatal: --name-only does not make sense" > expect.name-only
 echo "fatal: --name-status does not make sense" > expect.name-status
 echo "fatal: --check does not make sense" > expect.check
 
-test_expect_success 'options no longer allowed for format-patch' '
+test_expect_success C_LOCALE_OUTPUT 'options no longer allowed for format-patch' '
 	test_must_fail git format-patch --name-only 2> output &&
 	test_cmp expect.name-only output &&
 	test_must_fail git format-patch --name-status 2> output &&
@@ -663,6 +685,154 @@ test_expect_success 'format-patch --no-signature supresses signatures' '
 test_expect_success 'format-patch --signature="" supresses signatures' '
 	git format-patch --signature="" -1 >output &&
 	! grep "^-- \$" output
+'
+
+test_expect_success TTY 'format-patch --stdout paginates' '
+	rm -f pager_used &&
+	(
+		GIT_PAGER="wc >pager_used" &&
+		export GIT_PAGER &&
+		test_terminal git format-patch --stdout --all
+	) &&
+	test_path_is_file pager_used
+'
+
+ test_expect_success TTY 'format-patch --stdout pagination can be disabled' '
+	rm -f pager_used &&
+	(
+		GIT_PAGER="wc >pager_used" &&
+		export GIT_PAGER &&
+		test_terminal git --no-pager format-patch --stdout --all &&
+		test_terminal git -c "pager.format-patch=false" format-patch --stdout --all
+	) &&
+	test_path_is_missing pager_used &&
+	test_path_is_missing .git/pager_used
+'
+
+test_expect_success 'format-patch handles multi-line subjects' '
+	rm -rf patches/ &&
+	echo content >>file &&
+	for i in one two three; do echo $i; done >msg &&
+	git add file &&
+	git commit -b -F msg &&
+	git format-patch -o patches -1 &&
+	grep ^Subject: patches/0001-one.patch >actual &&
+	echo "Subject: [PATCH] one two three" >expect &&
+	test_cmp expect actual
+'
+
+test_expect_success 'format-patch handles multi-line encoded subjects' '
+	rm -rf patches/ &&
+	echo content >>file &&
+	for i in en två tre; do echo $i; done >msg &&
+	git add file &&
+	git commit -F msg &&
+	git format-patch -o patches -1 &&
+	grep ^Subject: patches/0001-en.patch >actual &&
+	echo "Subject: [PATCH] =?UTF-8?q?en=20tv=C3=A5=20tre?=" >expect &&
+	test_cmp expect actual
+'
+
+M8="foo bar "
+M64=$M8$M8$M8$M8$M8$M8$M8$M8
+M512=$M64$M64$M64$M64$M64$M64$M64$M64
+cat >expect <<'EOF'
+Subject: [PATCH] foo bar foo bar foo bar foo bar foo bar foo bar foo bar foo
+ bar foo bar foo bar foo bar foo bar foo bar foo bar foo bar
+ foo bar foo bar foo bar foo bar foo bar foo bar foo bar foo
+ bar foo bar foo bar foo bar foo bar foo bar foo bar foo bar
+ foo bar foo bar foo bar foo bar foo bar foo bar foo bar foo
+ bar foo bar foo bar foo bar foo bar foo bar foo bar foo bar
+ foo bar foo bar foo bar foo bar foo bar foo bar foo bar foo
+ bar foo bar foo bar foo bar foo bar foo bar foo bar foo bar
+ foo bar foo bar foo bar foo bar
+EOF
+test_expect_success 'format-patch wraps extremely long headers (ascii)' '
+	echo content >>file &&
+	git add file &&
+	git commit -b -m "$M512" &&
+	git format-patch --stdout -1 >patch &&
+	sed -n "/^Subject/p; /^ /p; /^$/q" <patch >subject &&
+	test_cmp expect subject
+'
+
+M8="föö bar "
+M64=$M8$M8$M8$M8$M8$M8$M8$M8
+M512=$M64$M64$M64$M64$M64$M64$M64$M64
+cat >expect <<'EOF'
+Subject: [PATCH] =?UTF-8?q?f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6=C3=B6=20bar=20f=C3=B6?=
+ =?UTF-8?q?=C3=B6=20bar=20f=C3=B6=C3=B6=20bar?=
+EOF
+test_expect_success 'format-patch wraps extremely long headers (rfc2047)' '
+	rm -rf patches/ &&
+	echo content >>file &&
+	git add file &&
+	git commit -b -m "$M512" &&
+	git format-patch --stdout -1 >patch &&
+	sed -n "/^Subject/p; /^ /p; /^$/q" <patch >subject &&
+	test_cmp expect subject
+'
+
+check_author() {
+	echo content >>file &&
+	git add file &&
+	GIT_AUTHOR_NAME=$1 git commit -m author-check &&
+	git format-patch --stdout -1 >patch &&
+	grep ^From: patch >actual &&
+	test_cmp expect actual
+}
+
+cat >expect <<'EOF'
+From: "Foo B. Bar" <author@example.com>
+EOF
+test_expect_success 'format-patch quotes dot in headers' '
+	check_author "Foo B. Bar"
+'
+
+cat >expect <<'EOF'
+From: "Foo \"The Baz\" Bar" <author@example.com>
+EOF
+test_expect_success 'format-patch quotes double-quote in headers' '
+	check_author "Foo \"The Baz\" Bar"
+'
+
+cat >expect <<'EOF'
+From: =?UTF-8?q?"F=C3=B6o=20B.=20Bar"?= <author@example.com>
+EOF
+test_expect_success 'rfc2047-encoded headers also double-quote 822 specials' '
+	check_author "Föo B. Bar"
+'
+
+cat >expect <<'EOF'
+Subject: header with . in it
+EOF
+test_expect_success 'subject lines do not have 822 atom-quoting' '
+	echo content >>file &&
+	git add file &&
+	git commit -m "header with . in it" &&
+	git format-patch -k -1 --stdout >patch &&
+	grep ^Subject: patch >actual &&
+	test_cmp expect actual
 '
 
 test_done

@@ -14,8 +14,11 @@ test_tick
 test_expect_success \
 	"initial status" \
 	"echo 'bongo bongo' >file &&
-	 git add file && \
-	 git status | grep 'no commits yet'"
+	 git add file"
+
+test_expect_success C_LOCALE_OUTPUT \
+	"Constructing initial commit" \
+	"git status | grep 'no commits yet'"
 
 test_expect_success \
 	"fail initial amend" \
@@ -228,6 +231,10 @@ test_expect_success 'amend commit to fix date' '
 	git cat-file -p HEAD > current &&
 	test_cmp expected current
 
+'
+
+test_expect_success 'commit complains about bogus date' '
+	test_must_fail git commit --amend --date=10.11.2010
 '
 
 test_expect_success 'sign off (1)' '
