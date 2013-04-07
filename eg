@@ -5815,7 +5815,7 @@ sub preprocess {
   # Get the (sub)subcommand
   if (scalar @ARGV == 0) {
     $self->{subcommand} = 'save';
-  } elsif ($ARGV[0] eq "--") {
+  } elsif ($ARGV[0] =~ /^--/) {
     $self->{subcommand} = "save";
   } else {
     $self->{subcommand} = shift @ARGV;
