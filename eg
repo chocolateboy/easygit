@@ -4045,6 +4045,7 @@ sub preprocess {
     "--mirror"            => \$mirror,
     "--dry-run"           => sub { &$record_arg(@_) },
     "--porcelain"         => sub { &$record_arg(@_) },
+    "--progress"          => sub { &$record_arg(@_) },
     "--receive-pack=s"    => sub { &$record_args(@_) },
     "force|f"             => sub { &$record_arg(@_) },
     "repo=s"              => \$repo,
