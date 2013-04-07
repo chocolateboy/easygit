@@ -1210,7 +1210,7 @@ sub preprocess {
       $dry_run, $allow_empty, $include) = (0, 0, 0, 0, 0, 0, 0);
   Getopt::Long::Configure("permute");
   my $result = main::GetOptions(
-    "--help"                      => sub { $self->help() },
+    "--help|h"                    => sub { $self->help() },
     "all-known|a"                 => \$all_known,
     "bypass-unknown-check|b"      => \$bypass_unknown,
     "staged|dirty|d"              => \$staged,
@@ -6056,7 +6056,7 @@ sub preprocess {
   my $no_filter = 0;
   Getopt::Long::Configure("permute");
   my $result = main::GetOptions(
-    "help"      => sub { $self->help() },
+    "help|h"    => sub { $self->help() },
     "short|s"   => sub { $no_filter = 1 },
     "porcelain" => sub { $no_filter = 1 },
     "z"         => sub { $no_filter = 1 },
