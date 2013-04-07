@@ -6059,6 +6059,7 @@ sub preprocess {
   my $result = main::GetOptions(
     "help|h"    => sub { $self->help() },
     "short|s"   => sub { $no_filter = 1 },
+    "suno|sunormal|suall" => sub { $no_filter = 1 },  # git status parser allows combining -s and -u options, somewhat weirdly
     "porcelain" => sub { $no_filter = 1 },
     "z"         => sub { $no_filter = 1 },
     );
