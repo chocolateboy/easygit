@@ -56,19 +56,20 @@ test_expect_success 'setup' '
 '
 
 cat >expect <<\EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 
 test_expect_success C_LOCALE_OUTPUT 'status (2)' '
@@ -79,19 +80,20 @@ test_expect_success C_LOCALE_OUTPUT 'status (2)' '
 '
 
 cat >expect <<\EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 
 git config advice.statusHints false
@@ -124,7 +126,7 @@ test_expect_success 'status -s' '
 '
 
 cat >expect <<\EOF
-## master
+# master
  M dir1/modified
 A  dir2/added
 ?? dir1/untracked
@@ -149,11 +151,14 @@ test_expect_success 'setup dir3' '
 '
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
+
+Untracked files not listed
 EOF
 test_expect_success C_LOCALE_OUTPUT 'status -uno' '
 	git status -uno >output &&
@@ -168,11 +173,14 @@ test_expect_success C_LOCALE_OUTPUT 'status (status.showUntrackedFiles no)' '
 '
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
+
+Untracked files not listed
 EOF
 git config advice.statusHints false
 test_expect_success C_LOCALE_OUTPUT 'status -uno (advice.statusHints false)' '
@@ -197,20 +205,21 @@ test_expect_success 'status -s (status.showUntrackedFiles no)' '
 '
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	dir3/
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 test_expect_success C_LOCALE_OUTPUT 'status -unormal' '
 	git status -unormal >output &&
@@ -247,21 +256,22 @@ test_expect_success 'status -s (status.showUntrackedFiles normal)' '
 '
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	dir3/untracked1
 	dir3/untracked2
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 test_expect_success C_LOCALE_OUTPUT 'status -uall' '
 	git status -uall >output &&
@@ -302,19 +312,20 @@ test_expect_success 'status -s (status.showUntrackedFiles all)' '
 '
 
 cat >expect <<\EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   ../dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   modified
-Newly created unknown files:
+
+Untracked files:
 	untracked
 	../dir2/modified
 	../dir2/untracked
 	../expect
-	../untracked
-Unknown files:
 	../output
+	../untracked
 EOF
 
 test_expect_success C_LOCALE_OUTPUT 'status with relative paths' '
@@ -367,19 +378,20 @@ test_expect_success 'setup unique colors' '
 '
 
 cat >expect <<\EOF
-(On branch <GREEN>master<RESET>)
-Changes ready to be committed ("staged"):
+On branch <GREEN>master<RESET>
+Changes to be committed:
 	<GREEN>new file:   dir2/added<RESET>
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	<RED>modified:   dir1/modified<RESET>
-Newly created unknown files:
+
+Untracked files:
 	<BLUE>dir1/untracked<RESET>
 	<BLUE>dir2/modified<RESET>
 	<BLUE>dir2/untracked<RESET>
 	<BLUE>expect<RESET>
-	<BLUE>untracked<RESET>
-Unknown files:
 	<BLUE>output<RESET>
+	<BLUE>untracked<RESET>
 EOF
 
 test_expect_success C_LOCALE_OUTPUT 'status with color.ui' '
@@ -429,7 +441,7 @@ test_expect_success 'status -s with color.status' '
 '
 
 cat >expect <<\EOF
-## <GREEN>master<RESET>
+# <GREEN>master<RESET>
  <RED>M<RESET> dir1/modified
 <GREEN>A<RESET>  dir2/added
 <BLUE>??<RESET> dir1/untracked
@@ -488,12 +500,14 @@ test_expect_success 'status --porcelain ignores -b' '
 '
 
 cat >expect <<\EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
@@ -577,20 +591,21 @@ test_expect_success 'setup status submodule summary' '
 '
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
 	new file:   sm
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 test_expect_success C_LOCALE_OUTPUT 'status submodule summary is disabled by default' '
 	git status >output &&
@@ -628,23 +643,26 @@ test_expect_success 'status -s --untracked-files=all does not show submodule' '
 head=$(cd sm && git rev-parse --short=7 --verify HEAD)
 
 cat >expect <<EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	new file:   dir2/added
 	new file:   sm
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
+
 Submodule changes to be committed:
+
 * sm 0000000...$head (1):
-  > Add foo
-Newly created unknown files:
+> Add foo
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 test_expect_success C_LOCALE_OUTPUT 'status submodule summary' '
 	git config status.submodulesummary 10 &&
@@ -690,18 +708,19 @@ no changes added to commit (use "git add" and/or "git commit -a")
 EOF
 
 cat >expect2 <<EOF
-(On branch master)
-Changes not staged for commit ("unstaged"):
+On branch master
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
 	expect2
-	untracked
-Unknown files:
 	output
+	untracked
+no changes added to commit
 EOF
 test_expect_success 'status submodule summary (clean submodule): commit' '
 	git commit --staged -m "commit submodule"
@@ -785,23 +804,26 @@ new_head=$(cd sm && git rev-parse --short=7 --verify HEAD)
 touch .gitmodules
 
 cat > expect << EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	modified:   sm
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
+
 Submodule changes to be committed:
+
 * sm 4c2ba33...2fb508f (1):
-  > Add bar
-Newly created unknown files:
+> Add bar
+
+Untracked files:
 	.gitmodules
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 
 test_expect_success C_LOCALE_OUTPUT '--ignore-submodules=untracked suppresses submodules with untracked content' '
@@ -887,24 +909,27 @@ test_expect_success C_LOCALE_OUTPUT '.git/config ignore=dirty suppresses submodu
 '
 
 cat > expect << EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	modified:   sm
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
 	modified:   sm (modified content)
+
 Submodule changes to be committed:
+
 * sm 4c2ba33...2fb508f (1):
-  > Add bar
-Newly created unknown files:
+> Add bar
+
+Untracked files:
 	.gitmodules
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 
 test_expect_success C_LOCALE_OUTPUT "--ignore-submodules=untracked doesn't suppress submodules with modified content" '
@@ -934,27 +959,32 @@ test_expect_success C_LOCALE_OUTPUT ".git/config ignore=untracked doesn't suppre
 head2=$(cd sm && git commit -q -m "2nd commit" foo && git rev-parse --short=7 --verify HEAD)
 
 cat > expect << EOF
-(On branch master)
-Changes ready to be committed ("staged"):
+On branch master
+Changes to be committed:
 	modified:   sm
-Changes not staged for commit ("unstaged"):
+
+Changes not staged for commit:
 	modified:   dir1/modified
 	modified:   sm (new commits)
+
 Submodule changes to be committed:
+
 * sm 4c2ba33...2fb508f (1):
-  > Add bar
+> Add bar
+
 Submodules changed but not updated:
+
 * sm 2fb508f...2897915 (1):
-  > 2nd commit
-Newly created unknown files:
+> 2nd commit
+
+Untracked files:
 	.gitmodules
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
 EOF
 
 test_expect_success C_LOCALE_OUTPUT "--ignore-submodules=untracked doesn't suppress submodule summary" '
@@ -1005,18 +1035,19 @@ test_expect_success C_LOCALE_OUTPUT ".git/config ignore=dirty doesn't suppress s
 '
 
 cat > expect << EOF
-(On branch master)
-Changes not staged for commit ("unstaged"):
+On branch master
+Changes not staged for commit:
 	modified:   dir1/modified
-Newly created unknown files:
+
+Untracked files:
 	.gitmodules
 	dir1/untracked
 	dir2/modified
 	dir2/untracked
 	expect
-	untracked
-Unknown files:
 	output
+	untracked
+no changes added to commit
 EOF
 
 test_expect_success C_LOCALE_OUTPUT "--ignore-submodules=all suppresses submodule summary" '

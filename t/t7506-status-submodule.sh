@@ -22,7 +22,7 @@ test_expect_success 'setup' '
 
 test_expect_success C_LOCALE_OUTPUT 'status clean' '
 	git status >output &&
-	test "1" = $(git status | wc -l)
+	grep "nothing to commit" output
 '
 
 test_expect_success C_LOCALE_OUTPUT 'commit --dry-run -a clean' '
@@ -69,7 +69,7 @@ test_expect_success C_LOCALE_OUTPUT 'status with untracked file in submodule' '
 
 test_expect_success C_LOCALE_OUTPUT 'status -uno with untracked file in submodule' '
 	git status -uno >output &&
-	test 1 -eq "$(wc -l < output)"
+	grep "^nothing to commit" output
 '
 
 test_expect_success 'status with untracked file in submodule (porcelain)' '
@@ -178,7 +178,8 @@ test_expect_success 'rm submodule contents' '
 '
 
 test_expect_success C_LOCALE_OUTPUT 'status clean (empty submodule dir)' '
-	test "1" = $(git status | wc -l)
+	git status -uno >output &&
+	grep "nothing to commit" output
 '
 
 test_expect_success C_LOCALE_OUTPUT 'status -a clean (empty submodule dir)' '

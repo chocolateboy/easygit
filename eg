@@ -5961,13 +5961,11 @@ Usage:
   eg status
 
 Description:
-  Show the current state of the project.  In addition to showing the
-  currently active branch, whether you have unpushed local commits,
-  whether you have stashed any sets of changes away (see 'eg help
-  stash'), this command will list files with content in any of the
-  following states:
+  Show the current state of the working copy.  This command provides the
+  currently active branch, whether you have unpushed local commits, and
+  will list files with content in any of the following states:
 
-     Unknown files
+     Untracked files
        Files that are not explicitly ignored (i.e. do not appear in an
        ignore list such as a .gitignore file) but whose contents are still
        not tracked by git.
@@ -5975,16 +5973,8 @@ Description:
        These files can become known by running 'eg stage FILENAME', or
        ignored by having their name added to a .gitignore file.
 
-     Newly created unknown files
-       Same as unknown files; the reason for splitting unknown files into
-       two sets is to make it easier to find the files users are more
-       likely to want to add.  Also, 'eg commit' will by default error out
-       with a warning message if there are any newly created unknown files
-       in order to prevent forgetting to add files that should be included
-       in a commit.
-
      Modified submodules:
-       subdirectories that are tracked under their own git repository, and
+       Subdirectories that are tracked under their own git repository, and
        that are being tracked via use of the 'git submodule' command.
 
      Changes not staged for commit (\"unstaged\")
@@ -6003,7 +5993,7 @@ Description:
        and then the user should inform git that the conflicts are resolved
        by running 'eg resolved FILENAME'.
 
-     Changes ready to be committed (\"staged\")
+     Changes [ready] to be committed (\"staged\")
        Files with content changes that have explicitly been marked as ready
        to be committed.  This state only typically appears in advanced
        usage.
@@ -6014,300 +6004,57 @@ Description:
 
 ";
   $self->{'differences'} = "
-  eg status output is essentially just a streamlined and cleaned version of
-  git status output, with the addition of a new section (newly created
-  untracked files) and an extra status message being displayed when in the
-  middle of a special state (am, bisect, merge, or rebase).
+  eg status output is essentially just the same as git status output, with
+  the possible stripping of '# ' from the beginning of lines in older
+  versions of git.
 
-  The streamlining serves to avoid information overload to new users (which
-  is only possible with a less error prone \"commit\" command) and the
-  cleaning (removal of leading hash marks) serves to make the system more
-  inviting to new users.
+  eg status does turn advice.statusHints off, because (a) the hints refer
+  to git commands rather than eg commands, and (b) some of these are
+  unnecessary given the simpler diff/commit defaults.  (The fact that I
+  can't keep the explanations for handling conflict cases and how to
+  continue interrupted operations while tossing the other advice is
+  unfortunate, however.)
 
-  A slight wording change was done to transform \"untracked\" to \"unknown\"
-  since, as Havoc pointed out, the word \"tracked\" may not be very self
-  explanatory (in addition to the real meaning, users might think of:
-  \"tracked in the index?\", \"related to remote tracking branches?\", \"some
-  fancy new monitoring scheme unique to git that other vcses do not have?\",
-  \"is there some other meaning?\").  I do not know if \"known\" will fully
-  solve this, but I suspect it will be more self-explanatory than
-  \"tracked\".
-
-  There are also slight changes to the section names to reinforce
-  consistent naming when referring to the same concept (staging, in this
-  case), but the changes are very slight.
-
-  The extra status message when in the middle of an am, bisect, merge,
-  or rebase serves two purposes: to remind users that they are in the
-  middle of some operation (some people don't use the special prompt
-  from git's bash-completion support), and to provide a command users
-  can run to get help resolving such situations.  (Many users were
-  confused about or unaware how to resolve incomplete merges and
-  rebases; providing them with a specially written help page they
-  could access seemed to effectively assist them figure out the
-  appropriate steps to take -- especially in tricky or special cases.)
+  eg status used to also (1) differentiate between newly created untracked
+  files, and (2) had much more noticeable you-are-in-the-middle-of-a-<op>
+  messages that were combined with suggested commands to run for more
+  detailed help.  The loss of these two tweaks is unfortunate; however, the
+  need to update the status command frequently to work with new git
+  versions was a tremendous pain.  Having a non-working status command is a
+  much bigger problem than losing a few advice hints or having types of
+  untracked files explicitly separated here too.  Since I tend not to have
+  time to update eg that often, this seems like the right trade-off.
 ";
   return $self;
-}
-
-sub preprocess {
-  my $self = shift;
-
-  my @old_argv = @ARGV;
-  my $no_filter = 0;
-  Getopt::Long::Configure("permute");
-  my $result = main::GetOptions(
-    "help|h"    => sub { $self->help() },
-    "short|s"   => sub { $no_filter = 1 },
-    "suno|sunormal|suall" => sub { $no_filter = 1 },  # git status parser allows combining -s and -u options, somewhat weirdly
-    "porcelain" => sub { $no_filter = 1 },
-    "z"         => sub { $no_filter = 1 },
-    );
-  @ARGV = @old_argv;
-  $self->{no_filter} = $no_filter;
 }
 
 sub run {
   my $self = shift;
 
-  -t STDOUT and $ENV{"GIT_PAGER_IN_USE"}=1;
-  return $self->SUPER::run() if $self->{no_filter};
-
-  $self->{special_state} = RepoUtil::get_special_state($self->{git_dir});
-
   @ARGV = Util::quote_args(@ARGV);
-  return ExecUtil::execute("$GIT_CMD status @ARGV", ignore_ret => 1);
-}
 
-sub postprocess {
-  my $self = shift;
-  my $output = shift;
+  # Determine what version of git we are using; with git>=1.8.5, we can simplify
+  # our postprocessing.
+  my ($ret, $output) =
+    ExecUtil::execute_captured("$GIT_CMD --version");
+  exit $ret if $ret;
+  my @versions=split(/\./, (split / /, $output)[2]);
+  my $version_compare =
+    ($versions[0] <=> 1) || ($versions[1] <=> 8) || ($versions[2] <=> 5);
 
-  # If we can't parse the git status output, what we tell the user...
-  my $workaround_msg =
-    "You'll need to use an older git or a newer eg or 'git status'.";
-
-  if ($DEBUG == 2) {
-    print "    >>(No commands to run, just data to print)<<\n";
-    return;
+  my $advice = "";
+  my @unmerged_files = `$GIT_CMD ls-files -u`;
+  if (!@unmerged_files && !defined(RepoUtil::get_config("advice.statusHints"))) {
+    $advice = "-c advice.statusHints=false";
   }
 
-  if ($self->{no_filter}) {
-    print $output;
-    return;
+  # We can just run plain git status if we're using git >= 1.8.5
+  if ($version_compare >= 0) {
+    return ExecUtil::execute("$GIT_CMD $advice status @ARGV", ignore_ret => 1);
+  } else {
+    -t STDOUT and $ENV{"GIT_PAGER_IN_USE"}=1;
+    return ExecUtil::execute("$GIT_CMD $advice status @ARGV | sed -e 's/^\#[ ]*//'", ignore_ret => 1);
   }
-
-  my $branch;
-  my $initial_commit = 0;
-  my @sections;
-  my %files;
-  my %section_mapping = (
-       'Untracked files:' => 'Unknown files:',
-       'Changes to be committed:' => 'Changes ready to be committed ("staged"):',
-       'Changed but not updated:' => 'Changes not staged for commit ("unstaged"):',
-       'Changes not staged for commit:' => 'Changes not staged for commit ("unstaged"):',
-       'Unmerged paths:' => 'Unmerged paths (files with conflicts):'
-       );
-
-  my @basic_info;
-  my @diff_info;
-
-  # Exit early if git status had an error
-  if ($output =~ m/^fatal:/) {
-    print STDERR $output;
-    exit 128;
-  }
-
-  my $status_hints = RepoUtil::get_config("advice.statusHints");
-  $status_hints = (!defined($status_hints) || $status_hints eq "true");
-
-  # Parse the output
-  my @lines = split('\n', $output);
-  my $cur_state = -1;
-  while (@lines) {
-    my $line = shift @lines;
-    my $section = undef;
-    my $title;
-
-    if ($line =~ m/^# On branch (.*)$/) {
-      $branch = $1;
-    } elsif ($line =~ m/^# Initial commit$/) {
-      $initial_commit = 1;
-    } elsif ($line =~ m/^# ([A-Z].*:)$/) {
-      $cur_state = 1;
-      $title = $section_mapping{$1} || $1;
-      $section = $title;
-    } elsif ($cur_state < 0) {
-      next if $line !~ m/^# (.+)/;
-      push(@basic_info, $1);
-    } elsif ($line =~ m/^no changes added to commit/ ||
-             $line =~ m/^# Untracked files not listed/) {
-      next;  # Skip this line
-    } elsif ($line =~ m#^(?:\e\[.*?m)?diff --git a/#) {
-      push(@diff_info, $line);
-      push(@diff_info, @lines);
-      last;
-    } else {
-      die "ERROR: Cannot parse git status output.\n" .
-          "$workaround_msg\n" .
-          "Remaining unparsed lines:\n$line\n" . join("\n", @lines) . "\n";
-    }
-
-    # If we're inside a section type, parse it
-    if ($cur_state > 0) {
-      push (@sections, $section);
-      my @section_files;
-      my $hints;
-
-      # Parse the hints first
-      $line = shift @lines;
-      if ($status_hints) {
-        while ($line =~ m/^#\s+\((?:use "|commit).*/) {
-          $hints .= $line;
-          $line = shift @lines;
-        }
-        die("Bug parsing git status output.\n$workaround_msg\n") if $line ne '#';
-        $line = shift @lines; # Get rid of blank line
-      }
-
-      while (defined $line && $line =~ m/^(?:\e\[.*?m)?#.+$/) {
-        if ($line =~ m/^(?:\e\[.*?m)?#(\s+)(.*)/) {
-          my $space = $1;
-          my $file = $2;
-
-          # Remove leading space character for submodule changes
-          # (There's no real reason to do this other than laziness in
-          # updating test file results; output looks fine either way.)
-          $space =~ s/^[ ]//;
-          # Workaround the file not have proper terminating color escape sequence
-          if ($file =~ /^\s*\e\[.*?m/ && $file !~ /\e\[m$/) {
-            $file .= "\e[m";
-          }
-          push @section_files, "$space$file";
-        }
-        $line = shift @lines;
-        unshift(@lines, $line) if $line && $line =~ m#^(?:\e\[.*?m)?diff --git a/#;
-      }
-
-      if (defined($files{$section})) {
-        push(@{$files{$section}{'file_list'}}, @section_files);
-      } else {
-        $files{$section} = { title     => $title, # may be undef
-                             hint      => $hints,
-                             file_list => \@section_files };
-      }
-
-      # Record that we finished parsing this section
-      $cur_state = 0;
-    }
-  }
-
-  # Split the unknown files into those that are newly created and those that
-  # have been around
-  if (defined($files{'Unknown files:'})) {
-    # Get the list of unknown files that have been around for a while
-    my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
-    my %old_unknown;
-    if (-f "$git_dir/info/ignored-unknown") {
-      my @old_unknown_files = `cat "$git_dir/info/ignored-unknown"`;
-      chomp(@old_unknown_files);
-      @old_unknown_files =
-        Util::reroot_paths__from_to_files($top_dir, $cur_dir, @old_unknown_files);
-      map { $old_unknown{$_} = 1 } @old_unknown_files;
-    }
-
-    my @new_unknowns;
-    my @old_unknowns;
-    foreach my $fileline (@{$files{'Unknown files:'}{'file_list'}}) {
-      $fileline =~ m#(\s+(?:\e\[.*?m)?)(.*?)((?:\e\[m)?)$# ||
-        die "Failed parsing git status output: '$fileline'\n$workaround_msg\n";
-      if ($old_unknown{$2}) {
-        push(@old_unknowns, $fileline);
-      } else {
-        push(@new_unknowns, $fileline);
-      }
-    }
-
-    my ($index) = grep $sections[$_] eq "Unknown files:", 0 .. $#sections;
-    splice(@sections, $index, 1);
-    if (@new_unknowns) {
-      $files{'new_unknowns'} = { title     => 'Newly created unknown files:',
-                                 file_list => \@new_unknowns };
-      splice(@sections, $index++, 0, 'new_unknowns');
-    }
-    if (@old_unknowns) {
-      $files{'old_unknowns'} = { title     => 'Unknown files:',
-                                 file_list => \@old_unknowns };
-      splice(@sections, $index, 0, 'old_unknowns');
-    }
-  }
-
-  # Print out the branch we are on
-  if (defined $branch) {
-    print "(On branch $branch";
-    print ", no commits yet" if $initial_commit;
-    print ")\n";
-  }
-  foreach my $line (@basic_info) {
-    print "($line)\n";
-  }
-  my ($retval, $num_stashes) =
-      ExecUtil::execute_captured("$GIT_CMD stash list | wc -l");
-  chomp($num_stashes);
-  if ($num_stashes > 0) {
-    print "(You have $num_stashes stash(es).  Use 'eg stash list' to see them.)\n";
-  }
-
-  # Print out info about any special state we're in
-  my $notice = "";
-  if (defined $self->{special_state}) {
-    my ($highlight, $reset) = ("", "");
-    if (-t STDOUT) {
-      $highlight=`$GIT_CMD config --get-color color.status.header "red reverse"`;
-      $reset=`$GIT_CMD config --get-color "" "reset"`;
-    }
-
-    $notice .= "($highlight";
-    $notice .= "YOU ARE IN THE MIDDLE OF A $self->{special_state}; ";
-    $notice .= "RUN 'eg help topic middle-of-";
-    if ($self->{special_state} eq "APPLY MAIL OR REBASE") {
-      # FIXME: How do we get into this state anyway, and what should they run?
-      # Well, printing nothing will just get them the general topic page, then
-      # they can pick between am and rebase
-    } elsif ($self->{special_state} =~ /REBASE$/) {
-      $notice .= "rebase";
-    } elsif ($self->{special_state} eq "APPLY MAIL") {
-      $notice .= "am";
-    } elsif ($self->{special_state} eq "MERGE") {
-      $notice .= "merge";
-    } elsif ($self->{special_state} eq "BISECT") {
-      $notice .= "bisect";
-    }
-    $notice .= "' FOR MORE INFO.";
-    $notice .= "$reset)\n";
-    print $notice;
-  }
-
-  # Print out all the various changes
-  my $linecount = 0;
-  foreach my $section (@sections) {
-    if (defined($files{$section})) {
-      print "$files{$section}{'title'}\n";
-      $linecount += 1;
-      foreach my $fileline (@{$files{$section}{'file_list'}}) {
-        print "$fileline\n";
-        $linecount += 1;
-      }
-    }
-  }
-
-  # Repeat the notice so users will see it
-  if (defined $self->{special_state} && $linecount > 0) {
-    print $notice;
-  }
-
-  # Print the diff if we're running with the -v option
-  print join("\n", @diff_info)."\n" if (@diff_info);
 }
 
 ###########################################################################

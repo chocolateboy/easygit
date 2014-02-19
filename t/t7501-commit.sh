@@ -18,7 +18,7 @@ test_expect_success \
 
 test_expect_success C_LOCALE_OUTPUT \
 	"Constructing initial commit" \
-	"git status | grep 'no commits yet'"
+	"git status | grep 'Initial commit'"
 
 test_expect_success \
 	"fail initial amend" \

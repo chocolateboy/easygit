@@ -29,11 +29,11 @@ test_expect_success 'Report new path with conflict' '
 '
 
 cat >expect <<EOF
-(On branch side)
-(YOU ARE IN THE MIDDLE OF A MERGE; RUN 'eg help topic middle-of-merge' FOR MORE INFO.)
-Unmerged paths (files with conflicts):
+On branch side
+Unmerged paths:
 	deleted by us:      foo
-(YOU ARE IN THE MIDDLE OF A MERGE; RUN 'eg help topic middle-of-merge' FOR MORE INFO.)
+
+no changes added to commit
 EOF
 
 cat >expect2 <<EOF
