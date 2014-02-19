@@ -7380,8 +7380,7 @@ sub commit_push_checks (;$$) {
     } else {
       print "    >>Commands to gather data for sanity checks:\n";
     }
-    print "        $GIT_CMD status\n";
-    print "        $GIT_CMD ls-files --unmerged\n";
+    print "        $GIT_CMD status --porcelain\n";
     print "        $GIT_CMD symbolic-ref HEAD\n" if $check_for->{no_branch};
     print "        cd $top_dir && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory\n";
   } else {
@@ -7391,13 +7390,18 @@ sub commit_push_checks (;$$) {
   #
   # Determine which types of changes are present
   #
-  my ($ret, $output) = ExecUtil::execute_captured("$EG_EXEC status",
+  my ($ret, $output) = ExecUtil::execute_captured("$GIT_CMD status --porcelain",
                                                   ignore_ret => 1);
-  my @unmerged_files = `$GIT_CMD ls-files --unmerged`;
-  $status{has_new_unknown_files} = ($output =~ /^Newly created unknown files:$/m);
-  $status{has_unstaged_changes}  = ($output =~ /^Changes not staged for commit/m);
-  $status{has_staged_changes}    = ($output =~ /^Changes ready to be commit/m);
-  $status{has_unmerged_changes}  = (scalar @unmerged_files > 0);
+  # git status fails for bare repos, but those have no changes anyway
+  return \%status if $ret != 0;
+  # Determine what kind of changes this repo has
+  my @status_lines = split('\n', $output);
+  foreach my $line (@status_lines) {
+    next if $line !~ /^.. /;  # Skip "Warning:..." lines printed by status
+    $status{has_staged_changes}=1   if (substr($line, 0, 1) !~ /[? U]/);
+    $status{has_unstaged_changes}=1 if (substr($line, 1, 1) !~ /[? U]/);
+    $status{has_unmerged_changes}=1 if (substr($line, 0, 2) =~ /U/);
+  }
   $status{has_no_changes}        = !$status{has_unstaged_changes} &&
                                    !$status{has_staged_changes} &&
                                    !$status{has_unmerged_changes};
@@ -7408,8 +7412,7 @@ sub commit_push_checks (;$$) {
   #
   my @new_unknown = `(cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory)`;
   chomp(@new_unknown);
-  if ($check_for->{unknown} && $status{has_new_unknown_files} &&
-      -f "$git_dir/info/ignored-unknown") {
+  if (-f "$git_dir/info/ignored-unknown") {
     my @old_unknown_files = `cat "$git_dir/info/ignored-unknown"`;
     chomp(@old_unknown_files);
     @new_unknown = Util::difference(\@new_unknown, \@old_unknown_files);
