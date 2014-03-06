@@ -89,23 +89,24 @@ __eg_topiclist="$(__eg_topics 2>/dev/null)"
 
 _eg_commit ()
 {
-	__git_has_doubledash && return
+        case "$prev" in
+        -c|-C)
+                __gitcomp_nl "$(__git_refs)" "" "${cur}"
+                return
+                ;;
+        esac
 
-	local cur="${COMP_WORDS[COMP_CWORD]}"
 	case "$cur" in
 	--cleanup=*)
 		__gitcomp "default strip verbatim whitespace
 			" "" "${cur##--cleanup=}"
 		return
 		;;
-	--reuse-message=*)
-		__gitcomp "$(__git_refs)" "" "${cur##--reuse-message=}"
-		return
-		;;
-	--reedit-message=*)
-		__gitcomp "$(__git_refs)" "" "${cur##--reedit-message=}"
-		return
-		;;
+        --reuse-message=*|--reedit-message=*|\
+        --fixup=*|--squash=*)
+                __gitcomp_nl "$(__git_refs)" "" "${cur#*=}"
+                return
+                ;;
 	--untracked-files=*)
 		__gitcomp "all no normal" "" "${cur##--untracked-files=}"
 		return
@@ -114,11 +115,21 @@ _eg_commit ()
 		__gitcomp "
 			--all-tracked --bypass-untracked-check --staged --dirty
 			--author= --signoff --verify --no-verify
-			--edit --amend --include --only
+			--amend --include --only --interactive
+			--dry-run --reuse-message= --reedit-message=
+			--reset-author --file= --message= --template=
+			--cleanup= --untracked-files --untracked-files=
+			--verbose --quiet --fixup= --squash=
 			"
 		return
 	esac
-	COMPREPLY=()
+
+        if git rev-parse --verify --quiet HEAD >/dev/null; then
+                __git_complete_index_file "--committable"
+        else
+                # This is the first commit
+                __git_complete_index_file "--cached"
+        fi
 }
 
 _eg_diff ()
@@ -144,26 +155,29 @@ _eg_diff ()
 _eg_help ()
 {
   local i c=1 command
-  while [ $c -lt $COMP_CWORD ]; do
-    i="${COMP_WORDS[c]}"
+
+  while [ $c -lt $cword ]; do
+    i="${words[c]}"
     case "$i" in
     topic) command="$i"; break ;;
     esac
-    c=$((++c))
+    ((c++))
   done
 
-  if [ $c -eq $COMP_CWORD -a -z "$command" ]; then
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    case "$cur" in
-    --*)
+  if [ -n "$command" ]; then
+    __gitcomp "$(__eg_topics)"
+    return
+  fi
+
+  case "$cur" in
+  --*)
       __gitcomp "--all"
       return
       ;;
-    esac
-    __gitcomp "$(__eg_commands) topic"
-  else
-    __gitcomp "$(__eg_topics)"
-  fi
+  *)
+    __gitcomp "$(__eg_commands) topic"  # 'eg help' followed by <cmd> or 'topic'
+    ;;
+  esac
 }
 
 _eg_reset ()
@@ -204,25 +218,27 @@ _eg_track ()
   __git_complete_remote_or_refspec
 }
 
-_eg ()
+__eg_main ()
 {
   local i c=1 command __git_dir
 
-  while [ $c -lt $COMP_CWORD ]; do
-    i="${COMP_WORDS[c]}"
+  while [ $c -lt $cword ]; do
+    i="${words[c]}"
     case "$i" in
     --git-dir=*) __git_dir="${i#--git-dir=}" ;;
+    --git-dir)   ((c++)) ; __git_dir="${words[c]}" ;;
     --bare)      __git_dir="." ;;
     --version|-p|--paginate) ;;
     --help)      command="help"; break ;;
     --translate|--debug) ;;
+    -*) ;;
     *) command="$i"; break ;;
     esac
-    c=$((++c))
+    ((c++))
   done
 
   if [ -z "$command" ]; then
-    case "${COMP_WORDS[COMP_CWORD]}" in
+    case "$cur" in
     --*)   __gitcomp "
       --debug
       --translate
@@ -231,8 +247,10 @@ _eg ()
       --git-dir=
       --bare
       --version
-      --exec-path
+      --exec-path=
       --work-tree=
+      --namespace=
+      --no-replace-objects
       --help
       "
       ;;
@@ -241,64 +259,23 @@ _eg ()
     return
   fi
 
-  local expansion=$(__git_aliased_command "$command")
-  [ "$expansion" ] && command="$expansion"
+  local completion_func="_eg_${command//-/_}"
+  declare -f $completion_func >/dev/null && $completion_func && return
 
-  case "$command" in
-  am)          _git_am ;;
-  add)         _git_add ;;
-  apply)       _git_apply ;;
-  archive)     _git_archive ;;
-  bisect)      _git_bisect ;;
-  bundle)      _git_bundle ;;
-  branch)      _git_branch ;;
-  checkout)    _git_checkout ;;
-  cherry)      _git_cherry ;;
-  cherry-pick) _git_cherry_pick ;;
-  clean)       _git_clean ;;
-  clone)       _git_clone ;;
-  commit)      _eg_commit ;;
-  config)      _git_config ;;
-  describe)    _git_describe ;;
-  diff)        _eg_diff ;;
-  fetch)       _git_fetch ;;
-  format-patch) _git_format_patch ;;
-  gc)          _git_gc ;;
-  grep)        _git_grep ;;
-  help)        _eg_help ;;
-  init)        _git_init ;;
-  log)         _git_log ;;
-  ls-files)    _git_ls_files ;;
-  ls-remote)   _git_ls_remote ;;
-  ls-tree)     _git_ls_tree ;;
-  merge)       _git_merge;;
-  mergetool)   _git_mergetool;;
-  merge-base)  _git_merge_base ;;
-  mv)          _git_mv ;;
-  name-rev)    _git_name_rev ;;
-  pull)        _git_pull ;;
-  push)        _git_push ;;
-  rebase)      _git_rebase ;;
-  remote)      _git_remote ;;
-  reset)       _eg_reset ;;
-  revert)      _eg_revert ;;
-  rm)          _git_rm ;;
-  send-email)  _git_send_email ;;
-  shortlog)    _git_shortlog ;;
-  show)        _git_show ;;
-  show-branch) _git_log ;;
-  stage)       _git_add ;;
-  stash)       _git_stash ;;
-  submodule)   _git_submodule ;;
-  svn)         _git_svn ;;
-  switch)      _git_checkout ;;
-  tag)         _git_tag ;;
-  track)       _eg_track ;;
-  # unstage)     COMPREPLY=() ;;  ## Already handled by default case
-  whatchanged) _git_log ;;
-  *)           COMPREPLY=() ;;
-  esac
+  completion_func="_git_${command//-/_}"
+  declare -f $completion_func >/dev/null && $completion_func && return
+
+  local expansion=$(__git_aliased_command "$command")
+  if [ -n "$expansion" ]; then
+    completion_func="_git_${expansion//-/_}"
+    declare -f $completion_func >/dev/null && $completion_func
+  fi
 }
 
-complete -o bashdefault -o default -o nospace -F _eg eg 2> /dev/null \
-	|| complete -o default -o nospace -F _eg eg
+# wrapper for backwards compatibility
+_eg ()
+{
+  __git_wrap__eg_main
+}
+
+__git_complete eg __eg_main
