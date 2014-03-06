@@ -1488,7 +1488,8 @@ sub preprocess {
   # Avoid Util::git_rev_parse because it fails on t2010-checkout-ambiguous by
   # treating "--quiet" as a revision rather than an option; use our own
   # parse_args implementation instead.
-  my ($opts, $revs, $files) = RepoUtil::parse_args(["--extcmd", "-x"], @ARGV);
+  my ($opts, $revs, $files) =
+    RepoUtil::parse_args(["--extcmd", "--tool", "-x", "-l"], @ARGV);
 
   # Replace '..' with '...' in revision specifiers.  Use backslash escaping to
   # get actual dots and not just any character.  Use negative lookbehind and
@@ -1502,7 +1503,7 @@ sub preprocess {
   $self->{'opts'} = "";
   @ARGV = @$opts;
   my ($staged, $unstaged, $no_index, $ours, $theirs) = (0, 0, 0, 0, 0);
-  my $extcmd;
+  my ($extcmd, $difftool);
   Getopt::Long::Configure("permute");
   my $result = main::GetOptions(
     "--help"         => sub { $self->help() },
@@ -1510,6 +1511,7 @@ sub preprocess {
     "unstaged"       => \$unstaged,
     "no-index"       => \$no_index,
     "extcmd=s"       => \$extcmd,
+    "tool=s"         => \$difftool, # For difftool only; *shrug*
     "ours"           => \$ours,
     "theirs"         => \$theirs,
     );
@@ -1518,6 +1520,7 @@ sub preprocess {
   push(@args, "--cached") if $staged;
   push(@args, "--no-index") if $no_index;
   push(@args, "--extcmd", $extcmd) if $extcmd;
+  push(@args, "--tool", $difftool) if $difftool;
   push(@args, "--theirs") if $theirs;
   push(@args, "--ours") if $ours;
   push(@args, @ARGV);
@@ -7220,6 +7223,17 @@ sub parse_args ($@) {
       } else {
         push(@revs, $arg);
       }
+    }
+  }
+
+  # Get any options appearing after revisions (which git diff often allows)
+  while (@args) {
+    my $arg = shift @args;
+    if ($arg =~ /^-/ && ! -f $arg) {
+      push(@opts, $arg);
+    } else {
+      unshift(@args, $arg);
+      last;
     }
   }
 
