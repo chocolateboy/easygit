@@ -5775,14 +5775,10 @@ sub preprocess {
   # Get the (sub)subcommand
   if (scalar @ARGV == 0) {
     $self->{subcommand} = 'save';
-  } elsif ($ARGV[0] =~ /^--/) {
+  } elsif ($ARGV[0] =~ /^-/) {
     $self->{subcommand} = "save";
   } else {
     $self->{subcommand} = shift @ARGV;
-    if ($self->{subcommand} eq '-k') {
-      $self->{subcommand} = "save";
-      unshift @ARGV, '-k';
-    }
     push(@args, $self->{subcommand});
 
     # Pass all flags on to git
@@ -5803,7 +5799,7 @@ sub preprocess {
   }
 
   # Show a help message if they picked a bad stash subaction.
-  my @valid_commands = qw(list show apply clear save drop pop branch create);
+  my @valid_commands = qw(list show apply clear save drop pop branch create store);
   if (! grep {$_ eq $self->{subcommand}} @valid_commands) {
     print STDERR<<EOF;
 Aborting; invalid stash subcommand: $self->{subcommand}
