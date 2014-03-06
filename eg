@@ -6812,8 +6812,9 @@ sub get_dirs () {
 }
 
 sub initial_commit () {
-  my @output = `$GIT_CMD rev-parse --verify -q HEAD`;
-  return $?;
+  my $output = `$GIT_CMD show-ref | wc -l`;
+  chomp($output);
+  return $output == 0;
 }
 
 sub valid_ref ($) {
