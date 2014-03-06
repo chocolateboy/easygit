@@ -7640,11 +7640,16 @@ sub main () {
                "exec-path:s" => sub { $_[1] ? &$record_args(@_)
                                             : &$record_arg(@_); },
                "c:s"         => sub { push(@global_args, "-c", $_[1]); },
+               "C:s"         => sub { push(@global_args, "-C", $_[1]); },
                "paginate|p"  => sub { $USE_PAGER = 1; &$record_arg(@_)  },
                "no-pager"    => sub { $USE_PAGER = 0; &$record_arg(@_)  },
                "bare"        => sub { &$record_arg(@_)  },
                "git-dir=s"   => sub { &$record_args(@_) },
                "work-tree=s" => sub { &$record_args(@_) },
+               "icase-pathspecs"    => sub { &$record_arg(@_) },
+               "glob-pathspecs"     => sub { &$record_arg(@_) },
+               "noglob-pathspecs"   => sub { &$record_arg(@_) },
+               "literal-pathspecs"  => sub { &$record_arg(@_) },
                "no-replace-objects" => sub { &$record_arg(@_) },
                         );
   # Make sure all global args are passed to eg subprocesses as well...
