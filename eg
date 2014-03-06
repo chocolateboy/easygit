@@ -1087,7 +1087,7 @@ Description:
   In order to prevent common errors, the commit will abort with a warning
   message if there are no changes to commit, there are conflicts from a
   merge, or if eg detects that the choice of what to commit is ambiguous.
-  In particular, if you have any \"newly created\" unknown files present,
+  In particular, if you have any \"newly created\" untracked files present,
   or if you have both staged changes (i.e. changes explicitly marked as
   ready for commit) and unstaged changes, then you will get a warning
   rather than having the commit occur.  You can run 'eg status' to get the
@@ -1100,9 +1100,9 @@ Examples:
   necessarily clear.
       \$ eg commit
 
-  Record current changes, ignoring any unknown files present.  Also
-  remember the list of unknown files so that their existence will not
-  trigger future \"You have new unknown files present\" warnings when not
+  Record current changes, ignoring any untracked files present.  Also
+  remember the list of untracked files so that their existence will not
+  trigger future \"You have new untracked files present\" warnings when not
   using the -b flag.
       \$ eg commit -b
 
@@ -1115,7 +1115,7 @@ Examples:
   should be recorded.
 
   (Advanced) Record staged changes, ignoring both unstaged changes and
-  unknown files.
+  untracked files.
       \$ eg commit --staged
 
 Options:
@@ -1127,11 +1127,11 @@ Options:
     Incompatible with explicitly specifying files to commit on the command
     line, and incompatible with the --staged option.
 
-  --bypass-unknown-check, -b
-    Commit local changes, even if there are unknown files around.  If this
-    flag is not used and unknown files are currently present that were not
-    present the last time the -b flag was used, then the commit will be
-    aborted with a warning message.
+  --bypass-untracked-check, -b
+    Commit local changes, even if there are untracked files around.  If
+    this flag is not used and untracked files are currently present that
+    were not present the last time the -b flag was used, then the commit
+    will be aborted with a warning message.
 
   --staged, --dirty, -d
     Commit only staged changes and bypass sanity checks.  (\"dirty\" is kept
@@ -1160,9 +1160,9 @@ Options:
   like the --staged flag was passed UNLESS either the -a option is passed
   or files are explicitly listed on the command line.
 
-  The "--bypass-unknown-check" is unique to eg commit; git commit
+  The "--bypass-untracked-check" is unique to eg commit; git commit
   behavior differs by always turning on this functionality -- there is
-  no way to have git commit do an unknown files sanity check for you.
+  no way to have git commit do an untracked files sanity check for you.
 
   "-a" is not nearly as useful for eg commit as it is for git commit.  "-a"
   has the same behavior in both, but the "smart" behavior of eg commit
@@ -1173,11 +1173,11 @@ Options:
   for eg commit.
 
   To be precise about the behavior of a plain "eg commit":
-     If the working copy is clean                -> warn user: nothing to commit
-     else if there are unmerged files            -> warn user: unmerged files
-     else if there are new untracked files       -> warn user: new unknown files
-     else if both "staged" & unstaged changes[1] -> warn user: mix
-     else                                        -> run "git commit -a"
+     If the working copy is clean              -> warn user: nothing to commit
+     else if there are unmerged files          -> warn user: unmerged files
+     else if there are new untracked files     -> warn user: new untracked files
+     else if both staged & unstaged changes[1] -> warn user: mix
+     else                                      -> run "git commit -a"
   Actually, I do not pass -a if there are only staged changes present, but
   the result is the same.  Note that this essentially boils down to making
   the user do less work (no need to remember -a in the common case) and
@@ -1212,7 +1212,7 @@ sub preprocess {
   my $result = main::GetOptions(
     "--help|h"                    => sub { $self->help() },
     "all-known|a"                 => \$all_known,
-    "bypass-unknown-check|b"      => \$bypass_unknown,
+    "bypass-untracked-check|b"    => \$bypass_unknown,
     "staged|dirty|d"              => \$staged,
     "dry-run"                     => sub { $dry_run = 1,
                                            &$record_arg("--", @_) },
@@ -2612,8 +2612,8 @@ Files and directories in a git repository (stuff under .git)
       ignored files can also be listed here.
 
     info/ignored-unknown
-      A list of unknown files known to exist previously, used to determine
-      whether unknown files should cause commit (or push or publish) to
+      A list of untracked files known to exist previously, used to determine
+      whether untracked files should cause commit (or push or publish) to
       abort.  See 'eg help commit' for more information; this list is
       updated whenever the -b flag is passed to commit.
 
@@ -3307,6 +3307,83 @@ Options:
 }
 
 ###########################################################################
+# new-untracked                                                           #
+###########################################################################
+package new_untracked;
+@new_untracked::ISA = qw(subcommand);
+INIT {
+  $COMMAND{"new-untracked"} = {
+    new_command => 1,
+    section => 'misc',
+    about => 'Show new untracked files'
+    };
+}
+
+sub new {
+  my $class = shift;
+  my $self = $class->SUPER::new(
+    git_repo_needed => 1,
+    git_equivalent => '',
+    @_);
+  bless($self, $class);
+  $self->{'help'} = "
+Usage:
+  eg new-untracked
+
+Description:
+  Lists all the untracked files that are new.  Whenever you try to commit
+  or push and have new untracked files, eg will warn you that you may have
+  forgotten to add these files.  Whenever you pass -b to eg commit or eg
+  push or eg new-untracked, eg records the untracked files that are present
+  to avoid warning you again about forgetting to add those files.
+
+Options:
+  --bless-as-known-untracked, -b
+    Record the existing untracked files.
+";
+  $self->{'differences'} = '
+  eg new-untracked is a command new to eg that is not part of git.
+';
+  return $self;
+}
+
+sub preprocess {
+  my $self = shift;
+  my $package_name = ref($self);
+
+  $self->{bless_as_known_untracked} = 0;
+  my $result = main::GetOptions(
+    "--help"                     => sub { $self->help() },
+    "bless-as-known-untracked|b" => \$self->{bless_as_known_untracked},
+    );
+
+  die "Aborting: Too many args to eg new-untracked: @ARGV\n" if @ARGV > 0;
+}
+
+sub run {
+  my $self = shift;
+
+  # Record the ignored unknowns if requested
+  if ($self->{bless_as_known_untracked}) {
+    RepoUtil::record_ignored_unknowns();
+    return 0;
+  }
+
+  # Otherwise, determine which unknown files are "newly created"...
+  my ($cur_dir, $top_dir, $git_dir) = RepoUtil::get_dirs();
+  my @new_unknown = RepoUtil::get_new_unknowns($cur_dir, $top_dir, $git_dir);
+
+  # ...and print them out
+  print "No new untracked files.\n" if !@new_unknown;
+  print "New untracked files:\n" if @new_unknown;
+  foreach my $untracked (@new_unknown) {
+    print "\t$untracked\n";
+  }
+
+  return 0;
+}
+
+###########################################################################
 # publish                                                                 #
 ###########################################################################
 package publish;
@@ -3374,7 +3451,7 @@ Examples:
 Options
   --bypass-modification-check, -b
     To prevent you from publishing an incomplete set of changes, publish
-    typically checks whether you have new unknown files or modified files
+    typically checks whether you have new untracked files or modified files
     present and aborts if so.  You can bypass these checks with this
     option.
 ";
@@ -3878,7 +3955,7 @@ Examples:
 Options
   --bypass-modification-check, -b
     To prevent you from pushing an incomplete set of changes, push
-    typically checks whether you have new unknown files or modified files
+    typically checks whether you have new untracked files or modified files
     present and aborts if so.  You can bypass these checks with this
     option.
 
@@ -3942,7 +4019,7 @@ Options
         password (kerberos, ssh-keys, etc.).
 
     (3) eg performs checks for uncommitted changes and newly created
-        unknown files and warns/aborts if such exist when the user pushes
+        untracked files and warns/aborts if such exist when the user pushes
         (most former cvs/svn users are not yet familiar with the fact that
         only committed stuff gets pushed/pulled).  As with eg commit, such
         checks can be overridden with the -b flag.
@@ -5414,7 +5491,7 @@ Examples:
       \$ eg rm foo bar
 
   Mark the content of the file baz.c for removal from the next commit, but
-  keep baz.c in the working copy as an unknown file.
+  keep baz.c in the working copy as an untracked file.
       \$ eg rm --staged baz.c
 
   (Advanced) Remove all *.txt files under the Documentation directory OR
@@ -5436,7 +5513,7 @@ Options:
     marked as ready to be recorded in the next commit; see 'eg help topic
     staging' for more details).  When using this flag, the given files will
     not be removed from the working copy and will instead become
-    \"unknown\" files.
+    \"untracked\" files.
 
   --
     This option can be used to separate command-line options from the list
@@ -5708,7 +5785,7 @@ Description:
   be used to apply any previously stashed away changes.  This command can
   be used multiple times to have multiple sets of changes stashed away.
 
-  Unknown files (files which you have never run 'eg stage' on) are
+  Untracked files (files which you have never run 'eg stage' on) are
   unaffected; they will not be stashed away or reverted.
 
   When no arguments are specified to eg stash, the current changes are
@@ -7001,7 +7078,7 @@ EOF
 sub print_new_unknowns ($) {
   my ($new_unknowns) = @_;
   my $num = scalar(@$new_unknowns);
-  print STDERR "New unknown files";
+  print STDERR "New untracked files";
   print STDERR " include" if $num > 5;
   print STDERR ":\n";
   my $i = 0;
@@ -7010,7 +7087,7 @@ sub print_new_unknowns ($) {
     last if (++$i >= 5);
   }
   if ($num > 5) {
-    print STDERR "Run 'eg status' to see a full list of new unknown files.\n";
+    print STDERR "Run 'eg new-untracked' to see a full list of new untracked files.\n";
   }
   exit 1;
 }
@@ -7042,7 +7119,7 @@ EOF
          $status->{has_unstaged_changes} && $status->{has_staged_changes}) {
     print STDERR <<EOF;
 Aborting: It is not clear which changes should be committed; you have new
-unknown files, staged (explictly marked as ready for commit) changes, and
+untracked files, staged (explictly marked as ready for commit) changes, and
 unstaged changes all present.  Run 'eg help $commit_type' for details (in
 particular, the -b option and either the -a or --staged options).
 EOF
@@ -7050,7 +7127,7 @@ EOF
   }
   elsif ($check_for->{unknown} && $status->{has_new_unknown_files}) {
     print STDERR <<EOF;
-Aborting: You have new unknown files present and it is not clear whether
+Aborting: You have new untracked files present and it is not clear whether
 they should be committed.  Run 'eg help $commit_type' for details (in
 particular the -b option).
 EOF
@@ -7085,17 +7162,17 @@ EOF
       $status->{has_new_unknown_files} && 
       ($status->{has_unstaged_changes} || $status->{has_staged_changes})) {
     print STDERR <<EOF;
-Aborting: You have new unknown files and changed files present.  You should
-first commit any such changes (and/or use the -b flag to bypass this check)
-before trying to $clean_check_type your work elsewhere.
+Aborting: You have new untracked files and changed files present.  You
+should first commit any such changes (and/or use the -b flag to bypass this
+check) before trying to $clean_check_type your work elsewhere.
 EOF
     print_new_unknowns($new_unknown);
   }
   elsif ($check_for->{unknown} && $status->{has_new_unknown_files}) {
     print STDERR <<EOF;
-Aborting: You have new unknown files present.  You should either commit these
-new files before trying to $clean_check_type your work elsewhere, or use the
--b flag to bypass this check.
+Aborting: You have new untracked files present.  You should either commit
+these new files before trying to $clean_check_type your work elsewhere, or
+use the -b flag to bypass this check.
 EOF
     print_new_unknowns($new_unknown);
   }
@@ -7154,19 +7231,8 @@ sub commit_push_checks (;$$) {
                                    !$status{has_unmerged_changes};
   $status{output} = $output;
 
-  #
-  # Determine which unknown files are "newly created"
-  #
-  my @new_unknown = `(cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory)`;
-  chomp(@new_unknown);
-  if (-f "$git_dir/info/ignored-unknown") {
-    my @old_unknown_files = `cat "$git_dir/info/ignored-unknown"`;
-    chomp(@old_unknown_files);
-    @new_unknown = Util::difference(\@new_unknown, \@old_unknown_files);
-    $status{has_new_unknown_files} = (scalar(@new_unknown) > 0);
-  }
-  @new_unknown =
-    Util::reroot_paths__from_to_files($top_dir, $cur_dir, @new_unknown);
+  my @new_unknown = get_new_unknowns($cur_dir, $top_dir, $git_dir);
+  $status{has_new_unknown_files} = (scalar(@new_unknown) > 0);
 
   Util::pop_debug();
 
@@ -7192,6 +7258,24 @@ sub commit_push_checks (;$$) {
   }
 
   return \%status;
+}
+
+sub get_new_unknowns() {
+  my ($cur_dir, $top_dir, $git_dir) = @_;
+
+  #
+  # Determine which unknown files are "newly created"
+  #
+  my @new_unknown = `(cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory)`;
+  chomp(@new_unknown);
+  if (-f "$git_dir/info/ignored-unknown") {
+    my @old_unknown_files = `cat "$git_dir/info/ignored-unknown"`;
+    chomp(@old_unknown_files);
+    @new_unknown = Util::difference(\@new_unknown, \@old_unknown_files);
+  }
+  @new_unknown =
+    Util::reroot_paths__from_to_files($top_dir, $cur_dir, @new_unknown);
+  return @new_unknown;
 }
 
 sub record_ignored_unknowns () {
