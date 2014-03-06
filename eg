@@ -3162,17 +3162,17 @@ sub run {
 
   my $branch = RepoUtil::current_branch();
 
+  # We can just run plain git log if there's no current branch
+  if (!$branch || !RepoUtil::valid_ref($branch)) {
+    return ExecUtil::execute("$GIT_CMD log @ARGV", ignore_ret => 1);
+  }
+
   # Check whether to warn if there are no commits.  We don't want to parse
   # all the arguments to determine if there is a valid revision listed on the
   # command line (or, failing that, whether HEAD reference a valid revision);
   # instead, we just check for the simple case of no branches existing yet.
   if (!`$GIT_CMD branch -a`) {
     die "Error: No recorded commits to show yet.\n";
-  }
-
-  # We can just run plain git log if there's not current branch
-  if (!$branch || !RepoUtil::valid_ref($branch)) {
-    return ExecUtil::execute("$GIT_CMD log @ARGV", ignore_ret => 1);
   }
 
   my ($ret, $revision) =
