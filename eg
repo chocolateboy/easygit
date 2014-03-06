@@ -7114,9 +7114,9 @@ sub initial_commit () {
 }
 
 sub valid_ref ($) {
-  my ($ref) = @_;
+  my ($quoted_ref) = Util::quote_args(@_);
   my ($ret, $sha1sum) =
-    ExecUtil::execute_captured("$GIT_CMD rev-parse --verify -q $ref",
+    ExecUtil::execute_captured("$GIT_CMD rev-parse --verify -q $quoted_ref",
                                ignore_ret => 1);
   return $ret == 0;
 }
