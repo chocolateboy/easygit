@@ -4034,13 +4034,15 @@ sub preprocess {
   my $self = shift;
   my $package_name = ref($self);
 
+  my $force_with_lease_two_args = grep { $_ =~ /--force-with-lease=/ } @ARGV;
+
   #
   # Parse options
   #
   $self->{args} = [];
   $self->{git_args} = "";
   my $record_arg   = sub { push(@{$self->{args}}, "--$_[0]"); };
-  my $record_args  = sub { $_[0] = "--$_[0]"; push(@{$self->{args}}, @_);  };
+  my $record_args  = sub { push(@{$self->{args}}, "--$_[0]=$_[1]"); };
   my ($all_branches, $matching_branches, $all_tags, $mirror) = (0, 0, 0, 0);
   my ($thin, $repo) = (0, 0);
   my @branches;
@@ -4055,17 +4057,25 @@ sub preprocess {
     "--all-tags"          => \$all_tags,
     "tags"                => \$all_tags,
     "--mirror"            => \$mirror,
-    "--dry-run"           => sub { &$record_arg(@_) },
-    "--porcelain"         => sub { &$record_arg(@_) },
-    "--progress"          => sub { &$record_arg(@_) },
+    #"--dry-run"           => sub { &$record_arg(@_) },
+    #"--porcelain"         => sub { &$record_arg(@_) },
+    #"--progress"          => sub { &$record_arg(@_) },
     "--receive-pack=s"    => sub { &$record_args(@_) },
-    "force|f"             => sub { &$record_arg(@_) },
+    #"force|f"             => sub { &$record_arg(@_) },
     "repo=s"              => \$repo,
-    "thin"                => sub { &$record_arg(@_) },
-    "no-thin"             => sub { &$record_arg(@_) },
-    "verbose|v"           => sub { &$record_arg(@_) },
-    "set-upstream|u"      => sub { &$record_arg(@_) },
+    #"thin"                => sub { &$record_arg(@_) },
+    #"no-thin"             => sub { &$record_arg(@_) },
+    #"no-verify"           => sub { &$record_arg(@_) },
+    #"verbose|v"           => sub { &$record_arg(@_) },
+    #"set-upstream|u"      => sub { &$record_arg(@_) },
+    #"prune"               => sub { &$record_arg(@_) },
+    $force_with_lease_two_args ?
+      ("force-with-lease=s" => sub { &$record_args(@_) }) :
+      ("force-with-lease"   => sub { &$record_arg(@_) }),
+    #"follow-tags|follow-tag"      => sub { &$record_arg(@_) },
     "bypass-modification-check|b" => \$bypass_modification_check,
+    "recurse-submodules=s"        => sub { &$record_args(@_) },
+    "recurse-submodule=s"         => sub { &$record_args(@_) },
     );
   die "Cannot specify individual branches and request all branches too!\n"
     if @branches && ($all_branches || $mirror);
@@ -4074,6 +4084,16 @@ sub preprocess {
   push(@{$self->{args}}, "--all")    if $all_branches;
   push(@{$self->{args}}, "--tags")   if $all_tags;
   push(@{$self->{args}}, "--mirror") if $mirror;
+
+  while (@ARGV) {
+    my $arg = shift @ARGV;
+    if ($arg =~ /^-/) {
+      push(@{$self->{args}}, $arg);
+    } else {
+      unshift(@ARGV, $arg);
+      last;
+    }
+  }
 
   # Remaining (positional) args are repository and refspecs
   my $repository = shift @ARGV;
