@@ -7209,7 +7209,7 @@ sub parse_args ($@) {
       my @revs_to_check = split('\.\.\.?', $arg);
       my $found_invalid_ref = 0;
       foreach my $ref (@revs_to_check) {
-        if (!RepoUtil::valid_ref($ref)) {
+        if ($ref && !RepoUtil::valid_ref($ref)) {
           $found_invalid_ref = 1;
           last;
         }
