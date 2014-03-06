@@ -7200,7 +7200,7 @@ sub record_ignored_unknowns () {
 
   mkdir "$git_dir/info" unless -d "$git_dir/info";
   open(OUTPUT, "> $git_dir/info/ignored-unknown");
-  my @unknown_files = `cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory --no-empty-directory`;
+  my @unknown_files = `cd "$top_dir" && $GIT_CMD ls-files --exclude-standard --others --directory`;
   foreach my $file (@unknown_files) {
     print OUTPUT $file;
   }
