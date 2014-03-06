@@ -4003,28 +4003,13 @@ Options
         same, but --matching-branches is more self-documenting and also
         predates the ':' refspec).
 
-    (2) eg prevents pushing into a bare repository as a push-side check
-        rather than a receive-side check (when it can determine that the
-        remote repository is bare -- i.e. if the repository url is for a
-        locally mounted filesystem or uses ssh).  eg also allows the check
-        to be overridden on the push-side (by specifying a refspec
-        containing a ':' character).  This means it can work for users of
-        existing repositories (created with git < 1.7), and it provides a
-        solution that both avoids working copy inconsistency for new users
-        while allowing more advanced users to do what they need on the same
-        repository, and without forcing users to twiddle with the
-        configuration of the remote repository.  However, this method
-        doesn't work for repositories accessed via git://, and only works
-        for ssh-accessed repositories if users have ssh setup to not need a
-        password (kerberos, ssh-keys, etc.).
-
-    (3) eg performs checks for uncommitted changes and newly created
+    (2) eg performs checks for uncommitted changes and newly created
         untracked files and warns/aborts if such exist when the user pushes
         (most former cvs/svn users are not yet familiar with the fact that
         only committed stuff gets pushed/pulled).  As with eg commit, such
         checks can be overridden with the -b flag.
 
-    (4) eg provides extra --tag and --branch flags to make command lines
+    (3) eg provides extra --tag and --branch flags to make command lines
         more self-documenting and to avoid excessively early introduction
         of refspecs (a very confusing topic for new users).  However,
         refspecs still work with eg push, and users can learn about them by
@@ -4045,57 +4030,6 @@ sub _get_push_repository ($) {
   }
 }
 
-# _check_if_bare: Return whether the given repository is bare.  Returns
-# undef the repository doesn't specify a valid repository or the repository
-# is not of a type where we can determine bare-ness.  Otherwise returns
-# either the string "true" or "false".
-sub _check_if_bare ($) {
-  my $repository = shift;
-
-  # Don't know how to check rsync, http, https, or git repositories to see
-  # if they are bare.
-  return undef if $repository =~ m#^(rsync|http|https|git)://#;
-
-  #
-  # Check local directories
-  #
-  if ($repository =~ m#^file://(.*)#) {
-    $repository = $1;
-  }
-  if (-d $repository) {
-    my $orig_dir = main::getcwd();
-    chdir($repository);
-
-    my ($ret, $output) = 
-      ExecUtil::execute_captured("$GIT_CMD rev-parse --is-bare-repository",
-                                 ignore_ret => 1);
-
-    chdir($orig_dir);
-    return undef if $ret != 0;
-    chomp($output);
-    return $output;
-  }
-
-  #
-  # Check ssh systems
-  #
-  my ($user, $machine, $port, $path) = Util::split_ssh_repository($repository);
-  return undef if !defined $machine || !defined $path;
-
-  my ($ret, $output) = 
-    ExecUtil::execute_captured(
-      "ssh $port -q -o BatchMode=yes $user$machine 'cd $path && $GIT_CMD rev-parse --is-bare-repository'",
-      ignore_ret => 1);
-  return undef if $ret != 0;
-  chomp($output);
-  my @lines = split('\n', $output);
-  my $result = $lines[-1];
-  # If ssh or git itself failed, $ret could still be 0 but $result could be
-  # something other than "true" or "false"
-  return undef if (! grep {$_ eq $result} ["true", "false"]);
-  return $result;
-}
-
 sub preprocess {
   my $self = shift;
   my $package_name = ref($self);
@@ -4104,6 +4038,7 @@ sub preprocess {
   # Parse options
   #
   $self->{args} = [];
+  $self->{git_args} = "";
   my $record_arg   = sub { push(@{$self->{args}}, "--$_[0]"); };
   my $record_args  = sub { $_[0] = "--$_[0]"; push(@{$self->{args}}, @_);  };
   my ($all_branches, $matching_branches, $all_tags, $mirror) = (0, 0, 0, 0);
@@ -4136,9 +4071,19 @@ sub preprocess {
     if @branches && ($all_branches || $mirror);
   die "Cannot specify individual tags and request all tags too!\n"
     if @tags && ($all_tags || $mirror);
+  push(@{$self->{args}}, "--all")    if $all_branches;
+  push(@{$self->{args}}, "--tags")   if $all_tags;
+  push(@{$self->{args}}, "--mirror") if $mirror;
+
+  # Remaining (positional) args are repository and refspecs
   my $repository = shift @ARGV;
   my @git_refspecs = @ARGV;
+  if (defined $repository && $repository =~ m#^-#) {
+    die "Invalid repository to push to: $repository\n";
+  }
 
+  # Check whether there is unadded or uncommitted stuff; if so, user may
+  # benefit from a warning that their changes won't be included in the push.
   if (!$bypass_modification_check) {
     my $status = RepoUtil::commit_push_checks($package_name,
                                               {unknown => 1,
@@ -4150,122 +4095,36 @@ sub preprocess {
     RepoUtil::record_ignored_unknowns();
   }
 
-  push(@{$self->{args}}, "--all")    if $all_branches;
-  push(@{$self->{args}}, "--tags")   if $all_tags;
-  push(@{$self->{args}}, "--mirror") if $mirror;
-
-  my $default_specified = 0;
-  $default_specified = 1  if $all_branches;
-  $default_specified = 1  if $all_tags;
-  $default_specified = 1  if $mirror;
-
-  #
-  # Get the repository to push to
-  #
-  if (defined $repository && $repository =~ m#^-#) {
-    die "Invalid repository to push to: $repository\n";
+  # Determine the default behavior for push source(s) and destination(s)
+  if ($matching_branches) {
+    $self->{git_args} = "-c push.default=matching";
   }
-  my $remote;
-  if ($repository) {
-    push(@{$self->{args}}, $repository);
-  } elsif (!$repository && (@branches || @tags || !$default_specified)) {
-    $repository = RepoUtil::get_default_push_pull_repository();
-    push(@{$self->{args}}, $repository);
-    $remote = $repository;
-  } else {
-    # Just drop through to the git push defaults.
-  }
-
-  #
-  # Prevent pushing to a non-bare repository (on local filesystem or over
-  # ssh; I don't know how to detect other cases)...unless user explicitly
-  # specifies both source and destination references explicitly
-  #
-  my $remote_chk = $remote || $repository;
-  $repository = _get_push_repository($repository);
-  my $push_to_non_bare_repo;
-  if ($repository) {
-
-    # If the user uses a refspec including a colon character, assume
-    # they know what they are doing and skip the non-bare check
-    if (! grep {$_ =~ /:/} @git_refspecs) {
-
-      # Check if we have already determined this repository to be bare
-      my $is_bare;
-      $is_bare = RepoUtil::get_config("remote.$remote.bare") if $remote;
-      if (defined $is_bare) {
-        $push_to_non_bare_repo = ($is_bare eq "false");
-      } else {
-        $is_bare = _check_if_bare($repository);
-        if (defined $is_bare && defined $remote) {
-          RepoUtil::set_config("remote.$remote.bare", $is_bare);
-        }
-        $push_to_non_bare_repo = (defined $is_bare && $is_bare eq "false");
-      }
-    }
-  }
-  # Throw an error if the user is trying to push to a bare repository
-  # (and not using a refspec with a colon character)
-  if ($push_to_non_bare_repo) {
-    print STDERR <<EOF;
-Aborting: You are trying to push to a repository with an associated working
-copy, which will leave its working copy out of sync with its repository.
-Rather than pushing changes to that repository, you should go to where that
-repository is located and pull changes into it (using eg pull).  If you
-know what you are doing and know how to deal with the consequences, you can
-override this check by explicitly specifying source and destination
-references, e.g.
-  eg push REMOTE BRANCH:REMOTE_BRANCH
-Please refer to
-  eg help topic refspecs
-to learn what this syntax means and what the consequences of overriding this
-check are.
-EOF
-    exit 1;
-  }
-
-  #
-  # Get the default branch to push to, if needed
-  #
-  push(@{$self->{args}}, ":") if $matching_branches;
-  $default_specified = 1  if $matching_branches;
-
-  if (!@branches && !@tags && !@git_refspecs && !$default_specified) {
-    # User hasn't specified what to push; default choices:
-    # 1 - remote.$remote.(push|mirror) options
-    my $default_known = 0;
-    if (defined(RepoUtil::get_config("remote.$remote_chk.push")) ||
-        defined(RepoUtil::get_config("remote.$remote_chk.mirror"))) {
-      $default_known = 1;
-    }
-    # 2 - push.default option
-    if (defined(RepoUtil::get_config("push.default"))) {
-      $default_known = 1;
-    }
-    # 3 - branch.$branch.merge option
-    if (!$default_known) {
-      my $branch = RepoUtil::current_branch();
-      my $push_branch = RepoUtil::get_config("branch.$branch.merge");
-      if (defined $push_branch) {
-        $push_branch =~ s#refs/heads/##;
-        push(@{$self->{args}}, "$branch:$push_branch");
-        $default_known = 1;
-      }
-    }
-    # 4 - the only branch that exists at the remote end
-    if (!$default_known && defined $repository) {
-      my $only_branch = RepoUtil::get_only_branch($repository, "push");
-      push(@{$self->{args}}, $only_branch);
+  elsif (!$repository && !@branches && !@tags) {
+    if (!defined(RepoUtil::get_config("push.default"))) {
+      $self->{git_args} = "-c push.default=simple";
     }
   }
 
-  #
-  # Get the branch(es) to push
-  #
-  push(@branches, @git_refspecs);
-  push(@{$self->{args}}, @branches);
-  foreach my $tag (@tags) {
-    push(@{$self->{args}}, ("tag", $tag));
+  # Add the repository and refspecs back to our command line
+  push(@{$self->{args}}, $repository) if ($repository);
+  push(@{$self->{args}}, @git_refspecs);
+
+  # Handle the special --branch and --tag options, handling the addition of
+  # the repository positional argument if it wasn't done already.
+  if (@branches || @tags) {
+    if (!$repository) {
+      # FIXME: The rules for the default repository to push to are incomplete,
+      # having not been updated for remote.pushdefault and branch.*.pushremote.
+      # However, if someone is using those advanced options, odd that they'll
+      # be using eg's simplified --branches and --tags options instead of
+      # proper refspecs is small.
+      $repository = RepoUtil::get_default_push_pull_repository();
+      push(@{$self->{args}}, $repository);
+    }
+    push(@{$self->{args}}, @branches);
+    foreach my $tag (@tags) {
+      push(@{$self->{args}}, ("tag", $tag));
+    }
   }
 }
 
@@ -4273,7 +4132,8 @@ sub run {
   my $self = shift;
 
   my @args = Util::quote_args(@{$self->{args}});
-  return ExecUtil::execute("$GIT_CMD push @args", ignore_ret => 1);
+  return ExecUtil::execute("$GIT_CMD $self->{git_args} push @args",
+			   ignore_ret => 1);
 }
 
 ###########################################################################
