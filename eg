@@ -214,7 +214,7 @@ sub run {
   my $self = shift;
   my $package_name = ref($self);
 
-  my $subcommand = 
+  my $subcommand =
     $package_name eq "subcommand" ? $self->{'command'} : $package_name;
 
   @ARGV = Util::quote_args(@ARGV);
@@ -466,7 +466,7 @@ Examples
   updates since the bundle old-bundle was created, but don't include the
   new branch secret-stuff or crazy-idea
       \$ eg bundle create-update new-repo old-bundle ^secret-stuff ^crazy-idea
-      
+
 Options:
   eg bundle create FILENAME [REFERENCES]
   eg bundle create-update NEWFILENAME OLDFILENAME [REFERENCES]
@@ -532,9 +532,9 @@ sub preprocess {
   elsif ($self->{subcommand} eq 'create-update') {
     pop(@args);  # 'create-update' isn't a real git bundle subcommand
 
-    my $newname = shift @ARGV || 
+    my $newname = shift @ARGV ||
       die "You must specify a new and an old filename.\n";
-    my $oldname = shift @ARGV || 
+    my $oldname = shift @ARGV ||
       die "You must also specify an old filename\n";
 
     die "$oldname does not exist.\n" if ! -f $oldname;
@@ -1339,7 +1339,7 @@ Examples:
       \$ eg config --unset branch.master.merge
 
   List all options that have been set
-      \$ eg config --list  
+      \$ eg config --list
 ";
   return $self;
 }
@@ -1449,15 +1449,15 @@ Options:
     the ... operator of git log means, and vice-versa.  This causes lots of
     confusion.  We fix this by making the .. operator of eg diff
     do exactly what the ... operator of git diff does.  To see why:
-    
+
     Meanings of git commands, as a reminder (A and B are revisions):
       git diff A..B  <=> git diff A B                      # Endpoint difference
       git diff A...B <=> git diff $(git merge-base A B) B  # Changes from base
-    
+
     Why this is confusing (compare to above):
       git log A..B  <=> git log ^$(git merge-base A B) B   # Changes from base
       git log A...B <=> git log A B ^$(git merge-base A B) # Endpoint difference
-    
+
     So, my translation:
       eg diff A B   <=>  git diff A B    <=> git diff A..B
       eg diff A..B  <=>  git diff A...B
@@ -1533,7 +1533,7 @@ sub preprocess {
   die "eg diff: Cannot specify '--unstaged' with any revisions.\n"
     if ($unstaged && scalar @$revs > 0);
   # 'eg diff' (without arguments) should act like 'git diff HEAD', unless
-  # we are in an aborted merge state 
+  # we are in an aborted merge state
   if (!@$revs && !$unstaged && !$staged && !$no_index && !$ours && !$theirs) {
     if (-f "$self->{git_dir}/MERGE_HEAD") {
       my @merge_branches = RepoUtil::merge_branches();
@@ -1820,7 +1820,7 @@ sub run {
   }
 
   close(OUTPUT);
-  
+
   exit $self->{exit_status};
 }
 
@@ -2390,7 +2390,7 @@ Revisions from logged branch tip history
       fixes\@{1 day 3 hours ago}   - revision fixes pointed to 1 day 3 hours ago
       fixes\@{2008-02-29 12:34:00} - revision fixes had at 12:34 on Feb 29, 2008
     Again, these could refer to revisions that are no longer part of the
-    fixes branch, 
+    fixes branch,
 
   Using the branch log can be used to recover \"lost\" revisions that are
   no longer part of (or have never been part of) any branch reported by 'eg
@@ -2542,22 +2542,22 @@ Pictorial explanation
             stable
               |
            stable~1                                     bling
-              |                                           |   
+              |                                           |
            stable~2                                    bling~1
-              |   \\                                       |   
+              |   \\                                       |
         stable~3  stable~2^2                           bling~2
-              |     |                                     |   
+              |     |                                     |
         stable~4  stable~2^2~1                         bling~3
-              |  /                                     /      
-          stable~6                                bling~4     
-              |                                     |         
-          stable~7                                bling~5     
-            /   \\                                 /   \\       
+              |  /                                     /
+          stable~6                                bling~4
+              |                                     |
+          stable~7                                bling~5
+            /   \\                                 /   \\
       stable~8  stable~7^2                   bling~6  bling~5^2
-          |       |                             |       |     
-      stable~9  stable~7^2~1                 bling~7  bling~5^2~1     
-          |                                     |             
-      stable~10                              bling~8             
+          |       |                             |       |
+      stable~9  stable~7^2~1                 bling~7  bling~5^2~1
+          |                                     |
+      stable~10                              bling~8
   Note that there are many commits which are part of both branches,
   including two commits (I and K in the original picture) which were
   probably created after these two branches separated.  This is simply due
@@ -3210,10 +3210,10 @@ sub run {
 
   # Make sure that we don't leave the terminal in a weird state if the user
   # hits Ctrl-C during eg log
-  local $SIG{INT} = 
+  local $SIG{INT} =
     sub { kill 'SIGKILL', $pid; close(INPUT); close(OUTPUT); close(REV_LIST_INPUT);
           exit(0); };
- 
+
   #open(OUTPUT, ">&STDOUT");
   while (<INPUT>) {
     # If it's a commit line, determine the name of the commit and print it too
@@ -3752,7 +3752,7 @@ sub preprocess {
   # Parse options
   #
   $self->{args} = [];
-  my $record_arg  = 
+  my $record_arg  =
     sub { my $prefix = "";
           $prefix = "no-" if defined $_[1] && $_[1] == 0;
           push(@{$self->{args}}, "--$prefix$_[0]");
@@ -3953,7 +3953,7 @@ Examples:
       \$ eg push --tag MY_PROJECT_1_0 --tag USELESS_ALIAS_FOR_1_0
 
   Push the changes in just the stable branch
-      \$ eg push --branch stable 
+      \$ eg push --branch stable
 
 Options
   --bypass-modification-check, -b
@@ -4479,7 +4479,7 @@ Examples:
     branches (i.e. those branches whose names begin with \"bob/\"), as well
     as any associated configuration settings
       \$ eg remote rm bob
-    
+
   Category 2: Using one or more existing remotes
 
     Pull updates for all branches of the remote jill, storing each in a
@@ -4839,7 +4839,7 @@ Examples:
   You would like to revert the changes to baz.py in HEAD~4 relative to its
   second parent.  This can be accomplished as follows:
       \$ eg revert -m 2 --in HEAD~4 baz.py
-  
+
   (Advanced) Undo a previous stage, marking changes in foo.c as not
   being ready for commit (this is equivalent to eg unstage foo.c):
       \$ eg revert --staged foo.c
@@ -5113,7 +5113,7 @@ EOF
     $self->{revs} = "$first_rev $self->{revs}";
   }
 
-  # Determine some other stuff needed 
+  # Determine some other stuff needed
   $self->{files} = \@quoted_files;
   my ($new_files, $newish_files, $revert_files);
   my ($newly_added_files, $new_since_rev_files, $other_files);
@@ -5878,7 +5878,7 @@ sub run {
     $ret = ExecUtil::execute("$GIT_CMD $package_name @ARGV", ignore_ret => 1);
 
     my @lines = split('\n', $output);
-    my $regex = 
+    my $regex =
       qr#(stash\@{[^}]+}): (?:WIP )?[Oo]n [^:]*: (?:[0-9a-f]+\.\.\. )?#;
     foreach my $line (@lines) {
       if ($self->{show_details}) {
@@ -6523,7 +6523,7 @@ NOTE: If you are trying to undo the changes in a file, just run
 This works whether or not the file has been deleted.
 EOF
     }
-    
+
     exit 1;
   }
 
@@ -6544,7 +6544,7 @@ EOF
     # Check if the remote repository has exactly 1 branch...if so, return it,
     # otherwise throw an error
     my ($quoted_repo) = Util::quote_args("$self->{repository}");
-    my ($ret, $output) = 
+    my ($ret, $output) =
       ExecUtil::execute_captured("$GIT_CMD ls-remote -h $quoted_repo");
     if ($ret == 0) {
       my @remote_refs = split('\n', $output);
@@ -6562,7 +6562,7 @@ EOF
   if (!$merge_branch) {
     print STDERR <<EOF;
 Error: It is not clear which remote branch to update from.
-You can either use eg pull instead, or run 
+You can either use eg pull instead, or run
   eg config branch.$branch.merge BRANCHANME
 EOF
     exit 1;
@@ -6576,13 +6576,13 @@ sub run {
 
   # Get value to set ORIG_HEAD to (unless we are on the initial commit)
   Util::push_debug(new_value => 0);
-  my ($retval, $orig_sha1sum) = 
+  my ($retval, $orig_sha1sum) =
     ExecUtil::execute_captured("$GIT_CMD rev-parse HEAD", ignore_ret => 1);
   my $has_orig_head = ($retval == 0);
   Util::pop_debug();
 
   # Do the fetch && reset, making sure to set ORIG_HEAD
-  my ($ret, $output) = 
+  my ($ret, $output) =
     ExecUtil::execute_captured("$GIT_CMD fetch $self->{repository} " .
                                "$self->{merge_branch}:$self->{local_branch}",
                                ignore_ret => 1);
@@ -6770,7 +6770,7 @@ sub git_dir (%) {
   }
 
   Util::push_debug(new_value => 0);
-  my ($ret, $output) = 
+  my ($ret, $output) =
     ExecUtil::execute_captured("$GIT_CMD rev-parse --git-dir", ignore_ret => 1);
   Util::pop_debug();
 
@@ -6792,7 +6792,7 @@ sub get_dirs () {
 
   # Get the toplevel repository directory
   $TOPDIR = $CURDIR;
-  my ($ret, $rel_dir) = 
+  my ($ret, $rel_dir) =
     ExecUtil::execute_captured("$GIT_CMD rev-parse --show-prefix",
                                ignore_ret => 1);
   chomp($rel_dir);
@@ -6995,7 +6995,7 @@ EOF
     }
   }
   elsif ($check_for->{unknown} && $check_for->{partially_staged} &&
-         $status->{has_new_unknown_files} && 
+         $status->{has_new_unknown_files} &&
          $status->{has_unstaged_changes} && $status->{has_staged_changes}) {
     print STDERR <<EOF;
 Aborting: It is not clear which changes should be committed; you have new
@@ -7039,7 +7039,7 @@ EOF
   }
 
   if ($check_for->{unknown} && $check_for->{changes} &&
-      $status->{has_new_unknown_files} && 
+      $status->{has_new_unknown_files} &&
       ($status->{has_unstaged_changes} || $status->{has_staged_changes})) {
     print STDERR <<EOF;
 Aborting: You have new untracked files and changed files present.  You
@@ -7449,7 +7449,7 @@ sub git_rev_parse (@) {
   Util::push_debug(new_value => 0);
 
   my @quoted_args = Util::quote_args(@args);
-  my ($ret, $output) = 
+  my ($ret, $output) =
     ExecUtil::execute_captured("$GIT_CMD rev-parse @quoted_args",
                                ignore_ret => 1);
   if ($ret != 0) {
@@ -7626,7 +7626,7 @@ sub help (;$) {
 
 sub main () {
   #
-  # Get any global options 
+  # Get any global options
   #
   Getopt::Long::Configure("no_bundling", "no_permute",
                           "pass_through", "no_auto_abbrev", "no_ignore_case");
