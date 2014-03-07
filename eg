@@ -1248,7 +1248,7 @@ sub preprocess {
     $all_known && $staged;
   die "Cannot specify --staged when specifying files!\n" if @$files && $staged;
   $check_no_changes = !$amend && !$allow_empty && !$skip_all;
-  $check_unknown   = !$bypass_unknown && !$staged && !@$files && !$skip_all;
+  $check_unknown   = !$bypass_unknown && !$allow_empty && !$staged && !@$files && !$skip_all;
   $check_mixed     = !$all_known      && !$staged && !@$files && !$skip_all;
   $check_unmerged  = !$skip_all;
   push(@{$self->{'commit_flags'}}, "-a") if $all_known;
