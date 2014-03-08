@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 ## Easy GIT (eg), a frontend for git designed for former cvs and svn users
-## Version 1.7.5.2
+## Version 1.7.5.2.dev
 ## Copyright 2008-2013 by Elijah Newren and others
 ## Licensed under GNU GPL, version 2.
 
@@ -28,7 +28,7 @@ my $USE_PAGER = exists($ENV{EASYGIT_USE_PAGER}) ? $ENV{EASYGIT_USE_PAGER} : -1;
 
 # globals :-(
 my $OUTFH;
-my $VERSION = "1.7.5.2";
+my $VERSION = "1.7.5.2.dev";
 my $EG_EXEC = abs_path($0);
 my %ALIAS;
 my %COMMAND;    # command=>{section, short_description} mapping
