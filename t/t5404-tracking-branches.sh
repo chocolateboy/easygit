@@ -24,8 +24,10 @@ test_expect_success 'prepare pushable branches' '
 	cd aa &&
 	b1=$(git rev-parse origin/b1) &&
 	b2=$(git rev-parse origin/b2) &&
+	git checkout -b b1 origin/b1 &&
 	echo aa-b1 >>file &&
 	git commit -a -m aa-b1 &&
+	git checkout -b b2 origin/b2 &&
 	echo aa-b2 >>file &&
 	git commit -a -m aa-b2 &&
 	git checkout master &&
@@ -34,8 +36,7 @@ test_expect_success 'prepare pushable branches' '
 '
 
 test_expect_success 'mixed-success push returns error' '
-        git push origin master:master &&
-	test_must_fail git push --matching-branches
+	test_must_fail git push origin :
 '
 
 test_expect_success 'check tracking branches updated correctly after push' '

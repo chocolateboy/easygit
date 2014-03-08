@@ -8,22 +8,28 @@ if test -n "$NO_CURL"; then
 	test_done
 fi
 
-. "$TEST_DIRECTORY"/lib-httpd.sh
 LIB_HTTPD_PORT=${LIB_HTTPD_PORT-'5550'}
+. "$TEST_DIRECTORY"/lib-httpd.sh
 start_httpd
 
 test_expect_success 'setup repository' '
-	echo content >file &&
+	git config push.default matching &&
+	echo content1 >file &&
 	git add file &&
 	git commit -m one
+	echo content2 >file &&
+	git add file &&
+	git commit -m two
 '
 
-test_expect_success 'create http-accessible bare repository' '
-	mkdir "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" &&
+test_expect_success 'create http-accessible bare repository with loose objects' '
+	cp -R .git "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" &&
 	(cd "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" &&
-	 git --bare init &&
+	 git config core.bare true &&
+	 mkdir -p hooks &&
 	 echo "exec git update-server-info" >hooks/post-update &&
-	 chmod +x hooks/post-update
+	 chmod +x hooks/post-update &&
+	 hooks/post-update
 	) &&
 	git remote add public "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" &&
 	git push public master:master
@@ -35,11 +41,61 @@ test_expect_success 'clone http repository' '
 	test_cmp file clone/file
 '
 
-test_expect_success 'clone http repository with authentication' '
-	mkdir "$HTTPD_DOCUMENT_ROOT_PATH/auth/" &&
-	cp -Rf "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" "$HTTPD_DOCUMENT_ROOT_PATH/auth/repo.git" &&
-	git clone $AUTH_HTTPD_URL/auth/repo.git clone-auth &&
-	test_cmp file clone-auth/file
+test_expect_success 'create password-protected repository' '
+	mkdir -p "$HTTPD_DOCUMENT_ROOT_PATH/auth/dumb/" &&
+	cp -Rf "$HTTPD_DOCUMENT_ROOT_PATH/repo.git" \
+	       "$HTTPD_DOCUMENT_ROOT_PATH/auth/dumb/repo.git"
+'
+
+setup_askpass_helper
+
+test_expect_success 'cloning password-protected repository can fail' '
+	set_askpass wrong &&
+	test_must_fail git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-fail &&
+	expect_askpass both wrong
+'
+
+test_expect_success 'http auth can use user/pass in URL' '
+	set_askpass wrong &&
+	git clone "$HTTPD_URL_USER_PASS/auth/dumb/repo.git" clone-auth-none &&
+	expect_askpass none
+'
+
+test_expect_success 'http auth can use just user in URL' '
+	set_askpass user@host &&
+	git clone "$HTTPD_URL_USER/auth/dumb/repo.git" clone-auth-pass &&
+	expect_askpass pass user@host
+'
+
+test_expect_success 'http auth can request both user and pass' '
+	set_askpass user@host &&
+	git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-both &&
+	expect_askpass both user@host
+'
+
+test_expect_success 'http auth respects credential helper config' '
+	test_config_global credential.helper "!f() {
+		cat >/dev/null
+		echo username=user@host
+		echo password=user@host
+	}; f" &&
+	set_askpass wrong &&
+	git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-helper &&
+	expect_askpass none
+'
+
+test_expect_success 'http auth can get username from config' '
+	test_config_global "credential.$HTTPD_URL.username" user@host &&
+	set_askpass user@host &&
+	git clone "$HTTPD_URL/auth/dumb/repo.git" clone-auth-user &&
+	expect_askpass pass user@host
+'
+
+test_expect_success 'configured username does not override URL' '
+	test_config_global "credential.$HTTPD_URL.username" wrong &&
+	set_askpass user@host &&
+	git clone "$HTTPD_URL_USER/auth/dumb/repo.git" clone-auth-user2 &&
+	expect_askpass pass user@host
 '
 
 test_expect_success 'fetch changes via http' '
@@ -75,8 +131,7 @@ test_expect_success 'http remote detects correct HEAD' '
 test_expect_success 'fetch packed objects' '
 	cp -R "$HTTPD_DOCUMENT_ROOT_PATH"/repo.git "$HTTPD_DOCUMENT_ROOT_PATH"/repo_pack.git &&
 	(cd "$HTTPD_DOCUMENT_ROOT_PATH"/repo_pack.git &&
-	 git --bare repack &&
-	 git --bare prune-packed
+	 git --bare repack -a -d
 	) &&
 	git clone $HTTPD_URL/dumb/repo_pack.git
 '

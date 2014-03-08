@@ -19,7 +19,8 @@ mk_repo_pair () {
 	mkdir mirror &&
 	(
 		cd mirror &&
-		git init --bare
+		git init &&
+		git config receive.denyCurrentBranch warn
 	) &&
 	mkdir master &&
 	(
@@ -255,7 +256,7 @@ test_expect_success 'remote.foo.mirror=no has no effect' '
 		git branch keep master &&
 		git push --mirror up &&
 		git branch -D keep &&
-		git push --matching-branches up
+		git push up :
 	) &&
 	(
 		cd mirror &&

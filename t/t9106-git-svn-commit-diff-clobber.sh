@@ -35,7 +35,7 @@ test_expect_success 'commit conflicting change from git' '
 test_expect_success 'commit complementing change from git' '
 	git reset --hard HEAD~1 &&
 	echo second line from svn >> file &&
-	git commit -a -m "second line from svn" &&
+	git commit -b -a -m "second line from svn" &&
 	echo third line from git >> file &&
 	git commit -a -m "third line from git" &&
 	git svn commit-diff -r2 HEAD~1 HEAD "$svnrepo"

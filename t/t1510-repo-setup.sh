@@ -517,6 +517,25 @@ test_expect_success '#16c: bare .git has no worktree' '
 		"$here/16c/.git" "(null)" "$here/16c/sub" "(null)"
 '
 
+test_expect_success '#16d: bareness preserved across alias' '
+	setup_repo 16d unset "" unset &&
+	(
+		cd 16d/.git &&
+		test_must_fail git status &&
+		git config alias.st status &&
+		test_must_fail git st
+	)
+'
+
+test_expect_success '#16e: bareness preserved by --bare' '
+	setup_repo 16e unset "" unset &&
+	(
+		cd 16e/.git &&
+		test_must_fail git status &&
+		test_must_fail git --bare status
+	)
+'
+
 test_expect_success '#17: GIT_WORK_TREE without explicit GIT_DIR is accepted (bare case)' '
 	# Just like #16.
 	setup_repo 17a unset "" true &&
@@ -603,7 +622,7 @@ test_expect_success '#22a: core.worktree = GIT_DIR = .git dir' '
 	# like case #6.
 
 	setup_repo 22a "$here/22a/.git" "" unset &&
-	setup_repo 22ab . "" unset
+	setup_repo 22ab . "" unset &&
 	mkdir -p 22a/.git/sub 22a/sub &&
 	mkdir -p 22ab/.git/sub 22ab/sub &&
 	try_case 22a/.git unset . \
@@ -742,7 +761,7 @@ test_expect_success '#28: core.worktree and core.bare conflict (gitfile case)' '
 # Case #29: GIT_WORK_TREE(+core.worktree) overrides core.bare (gitfile case).
 test_expect_success '#29: setup' '
 	setup_repo 29 non-existent gitfile true &&
-	mkdir -p 29/sub/sub 29/wt/sub
+	mkdir -p 29/sub/sub 29/wt/sub &&
 	(
 		cd 29 &&
 		GIT_WORK_TREE="$here/29" &&

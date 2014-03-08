@@ -6,7 +6,7 @@ test_description='tests for ref^{stuff}'
 
 test_expect_success 'setup' '
 	echo blob >a-blob &&
-	git tag -a -m blob blob-tag `git hash-object -w a-blob`
+	git tag -a -m blob blob-tag `git hash-object -w a-blob` &&
 	mkdir a-tree &&
 	echo moreblobs >a-tree/another-blob &&
 	git add . &&
@@ -52,6 +52,13 @@ test_expect_success 'ref^{tree}' '
 	git rev-parse tree-tag^{tree} >actual &&
 	test_cmp expected actual &&
 	test_must_fail git rev-parse blob-tag^{tree}
+'
+
+test_expect_success 'ref^{tag}' '
+	test_must_fail git rev-parse HEAD^{tag} &&
+	git rev-parse commit-tag >expected &&
+	git rev-parse commit-tag^{tag} >actual &&
+	test_cmp expected actual
 '
 
 test_expect_success 'ref^{/.}' '

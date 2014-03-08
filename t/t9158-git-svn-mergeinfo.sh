@@ -29,13 +29,26 @@ test_expect_success 'clone svn repo' '
 test_expect_success 'change svn:mergeinfo' '
 	touch bar &&
 	git add bar &&
-	git commit -m "bar" &&
+	git commit -b -m "bar" &&
 	git svn dcommit --mergeinfo="/branches/foo:1-10"
 '
 
 test_expect_success 'verify svn:mergeinfo' '
 	mergeinfo=$(svn_cmd propget svn:mergeinfo "$svnrepo"/trunk)
 	test "$mergeinfo" = "/branches/foo:1-10"
+'
+
+test_expect_success 'change svn:mergeinfo multiline' '
+	touch baz &&
+	git add baz &&
+	git commit -m "baz" &&
+	git svn dcommit --mergeinfo="/branches/bar:1-10 /branches/other:3-5,8,10-11"
+'
+
+test_expect_success 'verify svn:mergeinfo multiline' '
+	mergeinfo=$(svn_cmd propget svn:mergeinfo "$svnrepo"/trunk)
+	test "$mergeinfo" = "/branches/bar:1-10
+/branches/other:3-5,8,10-11"
 '
 
 test_done
