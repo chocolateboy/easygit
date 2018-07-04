@@ -5814,7 +5814,7 @@ EOF
     my $stash_description = "@ARGV";
     my $single_word_desc = (scalar(@ARGV) == 1);
     @ARGV = ();
-    if ($stash_description =~ m#^stash\@{[^{]+}$# ||
+    if ($stash_description =~ m#^stash\@\{[^{]+\}$# ||
         ($single_word_desc && RepoUtil::valid_ref($stash_description))) {
       push(@args, $stash_description)
     } else {
@@ -5879,7 +5879,7 @@ sub run {
 
     my @lines = split('\n', $output);
     my $regex =
-      qr#(stash\@{[^}]+}): (?:WIP )?[Oo]n [^:]*: (?:[0-9a-f]+\.\.\. )?#;
+      qr#(stash\@\{[^}]+\}): (?:WIP )?[Oo]n [^:]*: (?:[0-9a-f]+\.\.\. )?#;
     foreach my $line (@lines) {
       if ($self->{show_details}) {
         print "$line\n";
