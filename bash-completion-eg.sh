@@ -254,7 +254,7 @@ __eg_main ()
       --help
       "
       ;;
-    *)     __gitcomp "$(__eg_commands) $(__git_aliases)" ;;
+    *)     __gitcomp "$(__eg_commands) $(git --list-cmds=alias)" ;;
     esac
     return
   fi
