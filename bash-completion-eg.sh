@@ -63,6 +63,9 @@
 # but has no corresponding support in the former.
 # *** End Note ***
 
+__eg_commit_options="--all-known -b --bypass-untracked-check -d --dirty --staged"
+__eg_diff_options="--unstaged"
+
 __eg_commands ()
 {
   if [ -n "$__eg_commandlist" ]; then
@@ -89,72 +92,73 @@ __eg_topiclist="$(__eg_topics 2>/dev/null)"
 
 _eg_commit ()
 {
-        case "$prev" in
-        -c|-C)
-                __gitcomp_nl "$(__git_refs)" "" "${cur}"
-                return
-                ;;
-        esac
+  case "$prev" in
+  -c|-C)
+    __git_complete_refs
+    return
+    ;;
+  esac
 
-	case "$cur" in
-	--cleanup=*)
-		__gitcomp "default strip verbatim whitespace
-			" "" "${cur##--cleanup=}"
-		return
-		;;
-        --reuse-message=*|--reedit-message=*|\
-        --fixup=*|--squash=*)
-                __gitcomp_nl "$(__git_refs)" "" "${cur#*=}"
-                return
-                ;;
-	--untracked-files=*)
-		__gitcomp "all no normal" "" "${cur##--untracked-files=}"
-		return
-		;;
-	--*)
-		__gitcomp "
-			--all-tracked --bypass-untracked-check --staged --dirty
-			--author= --signoff --verify --no-verify
-			--amend --include --only --interactive
-			--dry-run --reuse-message= --reedit-message=
-			--reset-author --file= --message= --template=
-			--cleanup= --untracked-files --untracked-files=
-			--verbose --quiet --fixup= --squash=
-			"
-		return
-	esac
+  case "$cur" in
+  --cleanup=*)
+    __gitcomp "default scissors strip verbatim whitespace
+      " "" "${cur##--cleanup=}"
+    return
+    ;;
+  --reuse-message=*|--reedit-message=*|\
+  --fixup=*|--squash=*)
+    __git_complete_refs --cur="${cur#*=}"
+    return
+    ;;
+  --untracked-files=*)
+    __gitcomp "$__git_untracked_file_modes" "" "${cur##--untracked-files=}"
+    return
+    ;;
+  --*)
+    __gitcomp_builtin commit "$__eg_commit_options"
+    return
+  esac
 
-        if git rev-parse --verify --quiet HEAD >/dev/null; then
-                __git_complete_index_file "--committable"
-        else
-                # This is the first commit
-                __git_complete_index_file "--cached"
-        fi
+  if __git rev-parse --verify --quiet HEAD >/dev/null; then
+    __git_complete_index_file "--committable"
+  else
+    # This is the first commit
+    __git_complete_index_file "--cached"
+  fi
 }
 
 _eg_diff ()
 {
-  local cur="${COMP_WORDS[COMP_CWORD]}"
+  __git_has_doubledash && return
+
   case "$cur" in
+  --diff-algorithm=*)
+    __gitcomp "$__git_diff_algorithms" "" "${cur##--diff-algorithm=}"
+    return
+    ;;
+  --submodule=*)
+    __gitcomp "$__git_diff_submodule_formats" "" "${cur##--submodule=}"
+    return
+    ;;
+  --color-moved=*)
+    __gitcomp "$__git_color_moved_opts" "" "${cur##--color-moved=}"
+    return
+    ;;
+  --color-moved-ws=*)
+    __gitcomp "$__git_color_moved_ws_opts" "" "${cur##--color-moved-ws=}"
+    return
+    ;;
   --*)
-    __gitcomp "--staged --unstaged
-      --cached --stat --numstat --shortstat --summary
-      --patch-with-stat --name-only --name-status --color
-      --no-color --color-words --no-renames --check
-      --full-index --binary --abbrev --diff-filter
-      --find-copies-harder --pickaxe-all --pickaxe-regex
-      --text --ignore-space-at-eol --ignore-space-change
-      --ignore-all-space --exit-code --quiet --ext-diff
-      --no-ext-diff"
+    __gitcomp "$__eg_diff_options $__git_diff_difftool_options"
     return
     ;;
   esac
-  __git_complete_file
+  __git_complete_revlist_file
 }
 
 _eg_help ()
 {
-  local i c=1 command
+  local i c="$__git_cmd_idx" command
 
   while [ $c -lt $cword ]; do
     i="${words[c]}"
@@ -182,21 +186,19 @@ _eg_help ()
 
 _eg_reset ()
 {
-	__git_has_doubledash && return
+  __git_has_doubledash && return
 
-	local cur="${COMP_WORDS[COMP_CWORD]}"
-	case "$cur" in
-	--*)
-		__gitcomp "--working-copy --no-unstaging --merge --mixed --hard --soft --patch"
-		return
-		;;
-	esac
-	__gitcomp "$(__git_refs)"
+  case "$cur" in
+    --*)
+      __gitcomp "--working-copy --no-unstaging --merge --mixed --hard --soft --patch"
+      return
+      ;;
+  esac
+  __gitcomp "$(__git_refs)"
 }
 
 _eg_revert ()
 {
-  local cur="${COMP_WORDS[COMP_CWORD]}"
   case "$cur" in
   --*)
     __gitcomp "--commit --no-commit --staged --in --since"
@@ -208,7 +210,6 @@ _eg_revert ()
 
 _eg_track ()
 {
-  local cur="${COMP_WORDS[COMP_CWORD]}"
   case "$cur" in
   --*)
     __gitcomp "--show --show-all --unset"
@@ -220,55 +221,96 @@ _eg_track ()
 
 __eg_main ()
 {
-  local i c=1 command __git_dir
+  local i c=1 command __git_dir __git_repo_path
+  local __git_C_args C_args_count=0
+  local __git_cmd_idx
 
   while [ $c -lt $cword ]; do
     i="${words[c]}"
     case "$i" in
-    --git-dir=*) __git_dir="${i#--git-dir=}" ;;
-    --git-dir)   ((c++)) ; __git_dir="${words[c]}" ;;
-    --bare)      __git_dir="." ;;
-    --version|-p|--paginate) ;;
-    --help)      command="help"; break ;;
-    --translate|--debug) ;;
-    -*) ;;
-    *) command="$i"; break ;;
+      --git-dir=*)
+        __git_dir="${i#--git-dir=}"
+        ;;
+      --git-dir)
+        ((c++))
+        __git_dir="${words[c]}"
+        ;;
+      --bare)
+        __git_dir="."
+        ;;
+      --help)
+        command="help"
+        break
+        ;;
+      -c|--work-tree|--namespace)
+        ((c++))
+        ;;
+      -C)
+        __git_C_args[C_args_count++]=-C
+        ((c++))
+        __git_C_args[C_args_count++]="${words[c]}"
+        ;;
+      -*)
+        ;;
+      *)
+        command="$i"
+        __git_cmd_idx="$c"
+        break
+        ;;
     esac
     ((c++))
   done
 
-  if [ -z "$command" ]; then
+  if [ -z "${command-}" ]; then
+    case "$prev" in
+      --git-dir|-C|--work-tree)
+        # these need a path argument, let's fall back to
+        # Bash filename completion
+        return
+        ;;
+      -c)
+        __git_complete_config_variable_name_and_value
+        return
+        ;;
+      --namespace)
+        # we don't support completing these options' arguments
+        return
+        ;;
+    esac
     case "$cur" in
-    --*)   __gitcomp "
-      --debug
-      --translate
-      --paginate
-      --no-pager
-      --git-dir=
-      --bare
-      --version
-      --exec-path=
-      --work-tree=
-      --namespace=
-      --no-replace-objects
-      --help
-      "
-      ;;
-    *)     __gitcomp "$(__eg_commands) $(git --list-cmds=alias)" ;;
+      --*)
+        __gitcomp "
+        --paginate
+        --no-pager
+        --git-dir=
+        --bare
+        --version
+        --exec-path
+        --exec-path=
+        --html-path
+        --man-path
+        --info-path
+        --work-tree=
+        --namespace=
+        --no-replace-objects
+        --help
+        "
+        ;;
+      *)
+        __gitcomp "$(__eg_commands) $(__git --list-cmds=list-mainporcelain,others,nohelpers,alias,list-complete,config)"
+        ;;
     esac
     return
   fi
 
   local completion_func="_eg_${command//-/_}"
-  declare -f $completion_func >/dev/null && $completion_func && return
-
-  completion_func="_git_${command//-/_}"
-  declare -f $completion_func >/dev/null && $completion_func && return
+  __git_have_func $completion_func && $completion_func && return
+  __git_complete_command "$command" && return
 
   local expansion=$(__git_aliased_command "$command")
   if [ -n "$expansion" ]; then
-    completion_func="_git_${expansion//-/_}"
-    declare -f $completion_func >/dev/null && $completion_func
+    words[1]=$expansion
+    __git_complete_command "$expansion"
   fi
 }
 
